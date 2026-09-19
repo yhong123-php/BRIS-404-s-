@@ -1,0 +1,60 @@
+import { useState, type FormEvent } from 'react';
+import { useNavigate } from 'react-router-dom';
+import client from '../api/client';
+import { useAuth } from '../context/AuthContext';
+
+export default function ChangePasswordPage() {
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirm, setConfirm] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const { refreshUser } = useAuth();
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setSubmitting(true);
+    try {
+      await client.post('/admin/change-password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        new_password_confirmation: confirm,
+      });
+      await refreshUser();
+      navigate('/');
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Could not change password.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="auth-page">
+      <form className="auth-card" onSubmit={handleSubmit}>
+        <h1>Change Password</h1>
+        <p className="auth-subtitle">
+          Your account was created with a temporary password. Set a new one to continue (SDD §5.1).
+        </p>
+        {error && <div className="form-error">{error}</div>}
+        <label>
+          Current password
+          <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+        </label>
+        <label>
+          New password
+          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
+        </label>
+        <label>
+          Confirm new password
+          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
+        </label>
+        <button type="submit" disabled={submitting}>
+          {submitting ? 'Saving…' : 'Save and continue'}
+        </button>
+      </form>
+    </div>
+  );
+}
