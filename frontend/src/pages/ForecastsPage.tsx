@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, formatDate, formatDateTime, PageSkeleton } from '../components/ui';
+import { apiError, formatDate, formatDateTime, PageSkeleton, EmptyRow } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -99,7 +99,7 @@ export function PredictiveDashboard() {
           {months.map((m) => (
             <tr key={m}><td>{m}</td><td>{count(m, 'birth')}</td><td>{count(m, 'death')}</td><td>{count(m, 'transfer_in')}</td><td>{count(m, 'transfer_out')}</td></tr>
           ))}
-          {months.length === 0 && <tr><td colSpan={5}>No births, deaths, or transfers recorded in the last 12 months — projections equal current counts until events are recorded.</td></tr>}
+          {months.length === 0 && <EmptyRow colSpan={5} message="No births, deaths, or transfers recorded in the last 12 months — projections equal current counts until events are recorded." />}
         </tbody>
       </table>
     </div>

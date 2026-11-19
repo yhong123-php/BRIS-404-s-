@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, formatDate, humanize, StatusBadge } from '../components/ui';
+import { apiError, formatDate, humanize, StatusBadge, EmptyRow } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -79,7 +79,7 @@ export default function PrivacyPage() {
               </td>
             </tr>
           ))}
-          {requests.length === 0 && <tr><td colSpan={6}>No data-subject requests. The Secretary receives them from the resident’s page.</td></tr>}
+          {requests.length === 0 && <EmptyRow colSpan={6} message="No data-subject requests. The Secretary receives them from the resident’s page." />}
         </tbody>
       </table>
 

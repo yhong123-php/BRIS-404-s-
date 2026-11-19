@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { BarChart, PageSkeleton } from '../components/ui';
+import { BarChart, PageSkeleton, Breadcrumb } from '../components/ui';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Purok, PurokStatistics } from '../api/types';
@@ -37,6 +37,7 @@ export default function PurokStatisticsPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents?tab=puroks' }, { label: purok?.name ?? 'Purok' }]} />
       <div className="page-header">
         <h2>{purok?.name ?? `Purok #${id}`} — Statistics</h2>
       </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import client from '../api/client';
 
 /** Shared building blocks for the module pages (B1–G2). */
@@ -158,6 +159,31 @@ export function BarChart({ data, seriesNames, unit = '' }: { data: BarDatum[]; s
         </table>
       </details>
     </div>
+  );
+}
+
+/** "Residents & Households › HH-5-03" trail shown above a detail page's title. */
+export function Breadcrumb({ items }: { items: { label: string; to?: string }[] }) {
+  return (
+    <nav className="breadcrumb no-print" aria-label="Breadcrumb">
+      {items.map((it, i) => (
+        <span key={i}>
+          {i > 0 && <span className="breadcrumb-sep" aria-hidden="true">›</span>}
+          {it.to ? <Link to={it.to}>{it.label}</Link> : <span aria-current="page">{it.label}</span>}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+/** An empty table row that says what to do next, with the action right there. */
+export function EmptyRow({ colSpan, message, action }: { colSpan: number; message: string; action?: ReactNode }) {
+  return (
+    <tr className="empty-row">
+      <td colSpan={colSpan}>
+        <div className="empty-state"><span>{message}</span>{action}</div>
+      </td>
+    </tr>
   );
 }
 

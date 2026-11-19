@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import client from '../api/client';
 import { EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
-import { StatusBadge, apiError, formatDate } from '../components/ui';
+import { StatusBadge, apiError, formatDate, EmptyRow } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -111,7 +111,7 @@ export function AiResidentAnalysis() {
               <td>{canConfirm && s.status === 'pending' && <div className="row-actions"><button onClick={() => decide(s, true)}>Confirm</button><button onClick={() => decide(s, false)}>Reject</button></div>}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={6}>No {status} suggestions.</td></tr>}
+          {rows.length === 0 && <EmptyRow colSpan={6} message={`No ${status} suggestions.`} />}
         </tbody>
       </table>
     </div>

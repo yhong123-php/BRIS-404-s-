@@ -3,7 +3,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom';
 import client from '../api/client';
 import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, formatIncome, type EmploymentStatus, type Resident, type SocialAssistanceRecord } from '../api/types';
 import ResidentServicePanels from '../components/ResidentServicePanels';
-import { apiError, formatDate, humanize, PageSkeleton, StatusBadge } from '../components/ui';
+import { apiError, Breadcrumb, EmptyRow, formatDate, humanize, PageSkeleton, StatusBadge } from '../components/ui';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 import { useAuth } from '../context/AuthContext';
@@ -98,11 +98,6 @@ export default function ResidentDetailPage() {
   }, [id, hasPermission, refKey]);
 
   const refresh = () => setRefKey((k) => k + 1);
-
-  const updateProfileField = async (field: 'employment_status' | 'educational_attainment', value: string) => {
-    await client.patch(`/admin/residents/${id}`, { [field]: value || null });
-    refresh();
-  };
 
   const run = async (fn: () => Promise<unknown>, ok: string) => {
     try {
@@ -201,6 +196,7 @@ export default function ResidentDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents' }, { label: resident.full_name }]} />
       <div className="page-header">
         <h2>
           {resident.full_name} <span className="muted">({resident.resident_number})</span> <StatusBadge status={resident.status} />
@@ -218,75 +214,50 @@ export default function ResidentDetailPage() {
       </div>
 
       {tab === 'profile' && (
-      <section className="detail-section">
-        <h3>Personal Information</h3>
-        <dl className="detail-grid">
-          <dt>Sex</dt>
-          <dd>{humanize(resident.sex)}</dd>
-          <dt>Birth Date</dt>
-          <dd>{formatDate(resident.birth_date)} (age {resident.age})</dd>
-          <dt>Birthplace</dt>
-          <dd>{resident.birth_place ?? '—'}</dd>
-          <dt>Civil Status</dt>
-          <dd>{humanize(resident.civil_status)}</dd>
-          <dt>Citizenship</dt>
-          <dd>{resident.citizenship ?? '—'}</dd>
-          <dt>Religion</dt>
-          <dd>{resident.religion ?? '—'}</dd>
-          <dt>Purok</dt>
-          <dd>{resident.purok?.name ?? '—'}</dd>
-          <dt>Address</dt>
-          <dd>{[resident.house_number, resident.street].filter(Boolean).join(' ') || '—'}</dd>
-          <dt>Resident Since</dt>
-          <dd>{formatDate(resident.residency_start_date)}</dd>
-          <dt>Voter Status</dt>
-          <dd>{resident.voter_status === 'registered' ? 'Registered voter' : resident.voter_status === 'not_registered' ? 'Not registered' : '—'}</dd>
-          <dt>Contact</dt>
-          <dd>{resident.contact_number ?? '—'}</dd>
-          <dt>Email</dt>
-          <dd>{resident.email ?? '—'}</dd>
-          <dt>Occupation</dt>
-          <dd>{resident.occupation ?? '—'}</dd>
-          <dt>Monthly Household Income</dt>
-          <dd>{resident.monthly_income_bracket ? formatIncome(resident.monthly_income_bracket) : '—'}</dd>
-          <dt>Employment Status</dt>
-          <dd>
-            {hasPermission('residents.edit') ? (
-              <select value={resident.employment_status ?? ''} onChange={(e) => updateProfileField('employment_status', e.target.value)}>
-                <option value="">— not recorded —</option>
-                {Object.entries(EMPLOYMENT_STATUS_LABELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            ) : resident.employment_status ? (
-              EMPLOYMENT_STATUS_LABELS[resident.employment_status as EmploymentStatus]
-            ) : (
-              '—'
-            )}
-          </dd>
-          <dt>Highest Education</dt>
-          <dd>
-            {hasPermission('residents.edit') ? (
-              <select value={resident.educational_attainment ?? ''} onChange={(e) => updateProfileField('educational_attainment', e.target.value)}>
-                <option value="">— not recorded —</option>
-                {Object.entries(EDUCATION_LEVELS).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
-            ) : resident.educational_attainment ? (
-              EDUCATION_LEVELS[resident.educational_attainment] ?? resident.educational_attainment
-            ) : (
-              '—'
-            )}
-          </dd>
-          <dt>Remarks</dt>
-          <dd>{resident.remarks || '—'}</dd>
-        </dl>
-      </section>
+        <div className="profile-grid">
+          <section className="detail-section">
+            <h3>Personal</h3>
+            <dl className="detail-grid">
+              <dt>Sex</dt><dd>{humanize(resident.sex)}</dd>
+              <dt>Birth date</dt><dd>{formatDate(resident.birth_date)} (age {resident.age})</dd>
+              <dt>Birthplace</dt><dd>{resident.birth_place || '—'}</dd>
+              <dt>Civil status</dt><dd>{humanize(resident.civil_status)}</dd>
+              <dt>Citizenship</dt><dd>{resident.citizenship || '—'}</dd>
+              <dt>Religion</dt><dd>{resident.religion || '—'}</dd>
+            </dl>
+          </section>
+          <section className="detail-section">
+            <h3>Address and residency</h3>
+            <dl className="detail-grid">
+              <dt>Purok</dt><dd>{resident.purok ? <Link to={`/puroks/${resident.purok.id}`}>{resident.purok.name}</Link> : '—'}</dd>
+              <dt>Address</dt><dd>{[resident.house_number, resident.street].filter(Boolean).join(' ') || '—'}</dd>
+              <dt>Resident since</dt><dd>{formatDate(resident.residency_start_date)}</dd>
+              <dt>Voter status</dt><dd>{resident.voter_status === 'registered' ? 'Registered voter' : resident.voter_status === 'not_registered' ? 'Not registered' : '—'}</dd>
+            </dl>
+          </section>
+          <section className="detail-section">
+            <h3>Contact</h3>
+            <dl className="detail-grid">
+              <dt>Mobile / phone</dt><dd>{resident.contact_number || '—'}</dd>
+              <dt>Email</dt><dd>{resident.email || '—'}</dd>
+            </dl>
+          </section>
+          <section className="detail-section">
+            <h3>Livelihood and education</h3>
+            <dl className="detail-grid">
+              <dt>Occupation</dt><dd>{resident.occupation || '—'}</dd>
+              <dt>Employment</dt><dd>{resident.employment_status ? EMPLOYMENT_STATUS_LABELS[resident.employment_status as EmploymentStatus] : '—'}</dd>
+              <dt>Monthly income</dt><dd>{resident.monthly_income_bracket ? formatIncome(resident.monthly_income_bracket) : '—'}</dd>
+              <dt>Education</dt><dd>{resident.educational_attainment ? (EDUCATION_LEVELS[resident.educational_attainment] ?? resident.educational_attainment) : '—'}</dd>
+            </dl>
+          </section>
+          {resident.remarks && (
+            <section className="detail-section" style={{ gridColumn: '1 / -1' }}>
+              <h3>Remarks</h3>
+              <p style={{ margin: 0 }}>{resident.remarks}</p>
+            </section>
+          )}
+        </div>
       )}
 
       {tab === 'assistance' && hasPermission('assistance.view') && (
@@ -313,9 +284,7 @@ export default function ResidentDetailPage() {
                 </tr>
               ))}
               {assistance.length === 0 && (
-                <tr>
-                  <td colSpan={5}>No assistance recorded.</td>
-                </tr>
+                <EmptyRow colSpan={5} message="No assistance recorded for this resident yet." action={hasPermission('assistance.record') ? <button className="button-sm" onClick={addAssistance}>+ Record assistance</button> : undefined} />
               )}
             </tbody>
           </table>
@@ -353,11 +322,12 @@ export default function ResidentDetailPage() {
                   <td><StatusBadge status={c.status} /></td>
                   <td>
                     {c.status === 'active' && hasPermission('classifications.manage') && (
-                      <button onClick={() => revokeClassification(c)}>Revoke</button>
+                      <button className="button-sm" onClick={() => revokeClassification(c)}>Revoke</button>
                     )}
                   </td>
                 </tr>
               ))}
+              {classifications.length === 0 && <EmptyRow colSpan={4} message="No sector classifications yet. Assign one below." />}
             </tbody>
           </table>
           {hasPermission('classifications.manage') && (
@@ -391,9 +361,10 @@ export default function ResidentDetailPage() {
                   <td>{s.skill_type.name}</td>
                   <td>{humanize(s.proficiency_level)}</td>
                   <td>{s.is_verified ? <StatusBadge status="verified" /> : <StatusBadge status="unverified" />}</td>
-                  <td>{!s.is_verified && hasPermission('a6.manage') && <button onClick={() => verifySkill(s.id)}>Verify</button>}</td>
+                  <td>{!s.is_verified && hasPermission('a6.manage') && <button className="button-sm" onClick={() => verifySkill(s.id)}>Verify</button>}</td>
                 </tr>
               ))}
+              {skills.length === 0 && <EmptyRow colSpan={4} message="No skills recorded yet. Add one below." />}
             </tbody>
           </table>
           {hasPermission('a6.manage') && (

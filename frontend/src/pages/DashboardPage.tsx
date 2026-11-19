@@ -134,6 +134,16 @@ function DashboardOverview() {
           icon: PuroksIcon,
           accent: 'bg-success/10 text-success-strong dark:text-success',
         },
+        ...(summary.seniors_total !== undefined
+          ? [
+              {
+                label: 'Senior citizens (60+)',
+                value: summary.seniors_total,
+                icon: ResidentsIcon,
+                accent: 'bg-gray-200/60 text-gray-600 dark:bg-gray-700/60 dark:text-gray-300',
+              },
+            ]
+          : []),
         ...(summary.top_skill !== undefined
           ? [
               {
@@ -252,9 +262,9 @@ function DashboardOverview() {
               variants={activityListVariants}
               initial="hidden"
               animate="visible"
-              className="activity-list mt-3 divide-y divide-gray-200 dark:divide-white/10"
+              className="dash-activity mt-3 divide-y divide-gray-200 dark:divide-white/10"
             >
-              {summary.recent_activity.map((entry, i) => {
+              {summary.recent_activity.slice(0, 5).map((entry, i) => {
                 const { icon: ActivityIcon, classes } = activityMeta(entry.action);
                 const link = activityLink(entry);
                 const initials = entry.user

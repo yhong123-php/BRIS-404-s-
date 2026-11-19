@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
-import { ResidentPicker, apiError, formatDate, type ResidentOption } from '../components/ui';
+import { ResidentPicker, apiError, formatDate, type ResidentOption, EmptyRow } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -72,7 +72,7 @@ export default function PopulationEventsPage() {
               <td>{e.recorded_by ?? '—'}</td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={7}>No population events recorded.</td></tr>}
+          {rows.length === 0 && <EmptyRow colSpan={7} message="No population events recorded." />}
         </tbody>
       </table>
     </div>

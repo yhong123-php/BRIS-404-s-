@@ -4,7 +4,7 @@ import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
-import { apiError, formatDate, formatDateTime, Section, StatusBadge } from './ui';
+import { apiError, formatDate, formatDateTime, EmptyRow, Section, StatusBadge } from './ui';
 
 /**
  * Resident-page panels for the services residents request in person through
@@ -136,7 +136,7 @@ export default function ResidentServicePanels({ residentId }: { residentId: numb
             <thead><tr><th>Issued</th><th>Requested by</th><th>ID presented</th><th>Purpose</th><th>Issued by</th></tr></thead>
             <tbody>
               {copies.map((c) => <tr key={c.id}><td>{formatDateTime(c.issued_at)}</td><td>{c.requested_by_name}</td><td>{c.id_presented}</td><td>{c.purpose}</td><td>{c.issuer?.full_name}</td></tr>)}
-              {copies.length === 0 && <tr><td colSpan={5}>No copies issued.</td></tr>}
+              {copies.length === 0 && <EmptyRow colSpan={5} message="No copies issued." />}
             </tbody>
           </table>
         </Section>

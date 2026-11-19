@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'reac
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
-import { apiError, DocumentHeader, formatDate, humanize, StatusBadge } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, humanize, StatusBadge, EmptyRow } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -162,7 +162,7 @@ export default function OpportunitiesPage() {
               <td><StatusBadge status={o.status} /></td>
             </tr>
           ))}
-          {items.length === 0 && <tr><td colSpan={7}>No opportunities posted.</td></tr>}
+          {items.length === 0 && <EmptyRow colSpan={7} message="No opportunities posted yet." action={canManage && !showForm ? <button className="button-sm button-primary" onClick={() => setShowForm(true)}>+ Post opportunity</button> : undefined} />}
         </tbody>
       </table>
 
@@ -204,7 +204,7 @@ export default function OpportunitiesPage() {
                   </td>
                 </tr>
               ))}
-              {selected.by_purok.length === 0 && <tr><td colSpan={6}>No capable residents: none in the target puroks and age range have these verified skills with consent for opportunity matching.</td></tr>}
+              {selected.by_purok.length === 0 && <EmptyRow colSpan={6} message="No capable residents: none in the target puroks and age range have these verified skills with consent for opportunity matching." />}
             </tbody>
           </table>
 

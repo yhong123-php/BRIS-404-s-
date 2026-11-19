@@ -40,6 +40,8 @@ class DashboardController extends Controller
                 ->pluck('count', 'sex'),
             'households_total' => Household::count(),
             'puroks_total' => Purok::count(),
+            // Aged 60 and over by birth date (RA 9994), whether or not the OSCA classification is recorded yet.
+            'seniors_total' => Resident::where('status', 'active')->whereDate('birth_date', '<=', now()->subYears(60)->toDateString())->count(),
         ];
 
         // Same underlying queries as ReportsController — kept as one-line

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PageSkeleton, humanize } from '../components/ui';
+import { PageSkeleton, humanize, Breadcrumb } from '../components/ui';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Family } from '../api/types';
@@ -27,6 +27,7 @@ export default function FamilyDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents?tab=families' }, { label: family.family_name }]} />
       <div className="page-header">
         <h2>{family.family_name}</h2>
       </div>

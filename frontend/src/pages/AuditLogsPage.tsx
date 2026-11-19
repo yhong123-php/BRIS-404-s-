@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { formatDateTime, SkeletonLines } from '../components/ui';
+import { formatDateTime, SkeletonLines, EmptyRow } from '../components/ui';
 import client from '../api/client';
 import type { AuditLogEntry, AssistantQueryLog } from '../api/types';
 import { useAuth } from '../context/AuthContext';
@@ -95,7 +95,7 @@ export default function AuditLogsPage() {
                       </td>
                     </tr>
                   ))}
-                  {logs.length === 0 && <tr><td colSpan={7}>No audit log entries found.</td></tr>}
+                  {logs.length === 0 && <EmptyRow colSpan={7} message="No audit log entries found." />}
                 </tbody>
               </table>
             </div>
@@ -126,7 +126,7 @@ export default function AuditLogsPage() {
                   <td>{l.outcome.replace('_', ' ')}</td>
                 </tr>
               ))}
-              {assistantLogs.length === 0 && <tr><td colSpan={9}>No assistant queries yet.</td></tr>}
+              {assistantLogs.length === 0 && <EmptyRow colSpan={9} message="No assistant queries yet." />}
             </tbody>
           </table>
         </div>

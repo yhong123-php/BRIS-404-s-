@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import client from '../api/client';
-import { apiError, downloadFile, formatDateTime, StatusBadge } from '../components/ui';
+import { apiError, downloadFile, formatDateTime, StatusBadge, EmptyRow } from '../components/ui';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
@@ -92,7 +92,7 @@ export default function BackupsPage() {
               </td>
             </tr>
           ))}
-          {rows.length === 0 && <tr><td colSpan={7}>No backups yet.</td></tr>}
+          {rows.length === 0 && <EmptyRow colSpan={7} message="No backups yet." />}
         </tbody>
       </table>
     </div>

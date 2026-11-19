@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
 import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, INCOME_BRACKETS, formatIncome, type Purok, type Resident } from '../api/types';
-import { PageSkeleton, apiError } from '../components/ui';
+import { Breadcrumb, PageSkeleton, StatusBadge, apiError, formatDate, humanize } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -209,26 +209,48 @@ export default function ResidentCreatePage() {
   if (!loaded) return <PageSkeleton cards={0} />;
 
   if (candidates) {
+    const purokName = puroks.find((p) => String(p.id) === form.purok_id)?.name ?? '—';
+    const typedName = [form.last_name + ',', form.first_name, form.middle_name].filter(Boolean).join(' ');
     return (
       <div>
-        <h2>Possible Duplicate Residents Found</h2>
-        <p>
-          {candidates.length} existing resident(s) may match “{form.first_name} {form.last_name}”. Check that this is a different person before continuing (SDD §4.3).
-        </p>
-        <table className="data-table">
-          <thead><tr><th>Resident #</th><th>Name</th><th>Birth date</th><th>Purok</th><th>Similarity</th></tr></thead>
-          <tbody>
-            {candidates.map((c) => (
-              <tr key={c.resident.id}>
-                <td>{c.resident.resident_number}</td>
-                <td><a href={`/residents/${c.resident.id}`} target="_blank" rel="noreferrer">{c.resident.full_name}</a></td>
-                <td>{c.resident.birth_date}</td>
-                <td>{c.resident.purok?.name ?? '—'}</td>
-                <td>{c.similarity_percent}%{c.same_birth_date ? ' (same birth date)' : ''}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents' }, { label: 'Register resident' }]} />
+        <div className="page-header"><h2>Possible duplicate found</h2></div>
+        <div className="callout">
+          {candidates.length === 1 ? 'An existing resident looks' : `${candidates.length} existing residents look`} like the person you are registering.
+          Compare them before saving, so the same person isn’t registered twice (SDD §4.3).
+        </div>
+
+        <div className="compare-grid">
+          <div className="compare-card entered">
+            <h4>You entered <span className="badge badge-info">New</span></h4>
+            <dl className="detail-grid">
+              <dt>Name</dt><dd>{typedName}</dd>
+              <dt>Birth date</dt><dd>{formatDate(form.birth_date)}</dd>
+              <dt>Sex</dt><dd>{humanize(form.sex)}</dd>
+              <dt>Purok</dt><dd>{purokName}</dd>
+            </dl>
+          </div>
+          {candidates.map((c) => {
+            const samePurok = String(c.resident.purok_id ?? c.resident.purok?.id ?? '') === form.purok_id;
+            return (
+              <div key={c.resident.id} className="compare-card">
+                <h4>
+                  <a href={`/residents/${c.resident.id}`} target="_blank" rel="noreferrer">{c.resident.resident_number}</a>
+                  <span className={`badge ${c.similarity_percent >= 90 ? 'badge-bad' : 'badge-warn'}`}>{c.similarity_percent}% match</span>
+                </h4>
+                <dl className="detail-grid">
+                  <dt>Name</dt><dd><span className={c.similarity_percent >= 90 ? 'match' : ''}>{c.resident.full_name}</span></dd>
+                  <dt>Birth date</dt><dd><span className={c.same_birth_date ? 'match' : ''}>{formatDate(c.resident.birth_date)}</span>{c.same_birth_date && ' · same'}</dd>
+                  <dt>Sex</dt><dd><span className={c.resident.sex === form.sex ? 'match' : ''}>{humanize(c.resident.sex)}</span></dd>
+                  <dt>Purok</dt><dd><span className={samePurok && c.resident.purok ? 'match' : ''}>{c.resident.purok?.name ?? '—'}</span></dd>
+                  <dt>Status</dt><dd><StatusBadge status={c.resident.status} /></dd>
+                </dl>
+              </div>
+            );
+          })}
+        </div>
+        <p className="note"><span className="match">Highlighted</span> details are the same as what you entered. Open a record number to see the full record in a new tab.</p>
+
         <div className="form-actions">
           <button onClick={() => setCandidates(null)}>Go back and edit</button>
           <button className="button-primary" disabled={submitting} onClick={() => submit(true)}>
@@ -241,6 +263,7 @@ export default function ResidentCreatePage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents' }, ...(editing ? [{ label: editName, to: `/residents/${editId}` }, { label: 'Edit' }] : [{ label: 'Register resident' }])]} />
       <div className="page-header">
         <h2>{editing ? `Edit resident — ${editName}` : 'Register Resident'}</h2>
       </div>

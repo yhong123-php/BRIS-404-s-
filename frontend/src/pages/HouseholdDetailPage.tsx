@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Household } from '../api/types';
-import { PageSkeleton, Section, StatusBadge, apiError, formatDate, humanize } from '../components/ui';
+import { Breadcrumb, EmptyRow, PageSkeleton, Section, StatusBadge, apiError, formatDate, humanize } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -93,6 +93,7 @@ export default function HouseholdDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Residents & Households', to: '/residents?tab=households' }, ...(purokName ? [{ label: purokName, to: `/puroks/${household.purok_id}` }] : []), { label: household.household_number }]} />
       <div className="page-header">
         <h2>Household {household.household_number} <StatusBadge status={household.status ?? 'active'} /></h2>
         {canManage && (
@@ -118,18 +119,17 @@ export default function HouseholdDetailPage() {
 
       <Section title={`Members (${members.length})`}>
         <table className="data-table">
-          <thead><tr><th>Resident</th><th>Relationship</th><th>Role</th><th>Member since</th><th></th></tr></thead>
+          <thead><tr><th>Resident</th><th>Relationship to head</th><th>Member since</th><th></th></tr></thead>
           <tbody>
             {[...members].sort((a, b) => Number(b.is_head) - Number(a.is_head)).map((m) => (
               <tr key={m.id}>
                 <td><Link to={`/residents/${m.resident_id}`}>{m.resident_name}</Link></td>
-                <td>{humanize(m.relationship_to_head)}</td>
-                <td>{m.is_head ? <StatusBadge status="head" /> : 'Member'}</td>
+                <td>{m.is_head ? <StatusBadge status="head" /> : humanize(m.relationship_to_head)}</td>
                 <td>{formatDate(m.date_joined)}</td>
-                <td>{canManage && !m.is_head && <button onClick={() => makeHead(m.resident_id, m.resident_name)}>Make head</button>}</td>
+                <td>{canManage && !m.is_head && <button className="button-sm" onClick={() => makeHead(m.resident_id, m.resident_name)}>Make head</button>}</td>
               </tr>
             ))}
-            {members.length === 0 && <tr><td colSpan={5}>No members yet. Add the residents who live in this dwelling.</td></tr>}
+            {members.length === 0 && <EmptyRow colSpan={4} message="No members yet. Add the residents who live in this dwelling." action={canManage ? <button className="button-sm button-primary" onClick={addMember}>+ Add member</button> : undefined} />}
           </tbody>
         </table>
       </Section>

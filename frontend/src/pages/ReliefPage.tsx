@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, DocumentHeader, formatDate, formatDateTime, humanize, StatusBadge, PageSkeleton } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, formatDateTime, humanize, StatusBadge, PageSkeleton, Breadcrumb, EmptyRow } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -167,7 +167,7 @@ export function ReliefListPage() {
               <td><StatusBadge status={d.status} /></td>
             </tr>
           ))}
-          {items.length === 0 && <tr><td colSpan={6}>No relief distributions yet.</td></tr>}
+          {items.length === 0 && <EmptyRow colSpan={6} message="No relief distributions yet." action={hasPermission('relief.create') && !showForm ? <button className="button-sm button-primary" onClick={() => setShowForm(true)}>+ New distribution</button> : undefined} />}
         </tbody>
       </table>
     </div>
@@ -325,6 +325,7 @@ export function ReliefDetailPage() {
 
   return (
     <div>
+      <Breadcrumb items={[{ label: 'Relief Distribution', to: '/relief' }, { label: d.title }]} />
       <div className="page-header">
         <h2>{d.title} <StatusBadge status={d.status} /></h2>
         <div className="row-actions">
@@ -386,7 +387,7 @@ export function ReliefDetailPage() {
               </tr>
             ))}
             {data.by_purok.length > 0 && <tr style={{ fontWeight: 600 }}><td>Total</td><td>{totals.eligible}</td><td>{totals.served}</td><td></td><td></td><td>{totals.qty}</td><td>{totals.claimed}</td><td></td></tr>}
-            {data.by_purok.length === 0 && <tr><td colSpan={8}>No eligible households found. Check the eligibility rule, or that households and classifications are recorded.</td></tr>}
+            {data.by_purok.length === 0 && <EmptyRow colSpan={8} message="No eligible households found. Check the eligibility rule, or that households and classifications are recorded." />}
           </tbody>
         </table>
       </div>
@@ -442,7 +443,7 @@ export function ReliefDetailPage() {
                 })}
               </Fragment>
             ))}
-            {visible.length === 0 && <tr><td colSpan={8}>No households match.</td></tr>}
+            {visible.length === 0 && <EmptyRow colSpan={8} message="No households match." />}
           </tbody>
         </table>
       </div>

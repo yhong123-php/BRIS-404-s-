@@ -86,7 +86,7 @@ class ResidentController extends Controller
                 return response()->json([
                     'message' => 'Possible duplicate residents found. Review and resubmit with duplicate_check_acknowledged=true to proceed anyway.',
                     'candidates' => collect($candidates)->map(fn ($c) => [
-                        'resident' => new ResidentResource($c['resident']),
+                        'resident' => new ResidentResource($c['resident']->loadMissing('purok')),
                         'similarity_percent' => $c['similarity_percent'],
                         'same_birth_date' => $c['same_birth_date'],
                     ]),

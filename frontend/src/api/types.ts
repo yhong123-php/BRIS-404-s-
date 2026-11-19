@@ -148,6 +148,7 @@ export interface DashboardSummary {
   residents_by_sex: Record<string, number>;
   households_total: number;
   puroks_total: number;
+  seniors_total?: number;
   recent_activity?: DashboardActivity[];
   top_skill?: { name: string; count: number } | null;
   unemployed_count?: number;
