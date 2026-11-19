@@ -6,30 +6,30 @@ use App\Models\Permission;
 use Illuminate\Database\Seeder;
 
 /**
- * Permission names follow SDD §5.2's "module.operation" convention
- * (e.g. residents.create). The full set is derived from Table 9.0 (Role and
- * permission matrix) plus the addendum's Table 7.0 extension for F/G.
+ * Permission names follow SDD §5.2's "module.operation" convention. The set
+ * covers every capability row of SDD Table 5.1 and the assistant rows of
+ * Table 5.2. Module codes match SDD Figure 4.1.
  */
 class PermissionSeeder extends Seeder
 {
     public function run(): void
     {
         $permissions = [
-            // Dashboard (C1)
+            // C1 / C3 — Dashboards
             ['dashboard.view', 'C1', 'View the dashboard'],
+            ['f4.view', 'C3', 'View the predictive and demographic dashboard'],
 
-            // A1 — Resident registration
+            // A1 — Resident registration and updates
             ['residents.view', 'A1', 'View resident records'],
             ['residents.create', 'A1', 'Create a resident record'],
-            ['residents.edit', 'A1', 'Edit a resident record (full fields)'],
-            ['residents.edit_health_fields', 'A1', 'Edit only health and sectoral fields on an existing resident'],
+            ['residents.edit', 'A1', 'Edit a resident record'],
             ['residents.merge_archive', 'A1', 'Merge duplicate residents or archive a record'],
+            ['residents.restore', 'A1', 'Restore an archived resident record'],
 
-            // A2 — Household management
+            // A2 / A3 — Households and family relationships
             ['households.view', 'A2', 'View household records'],
             ['households.manage', 'A2', 'Create, update, and split households'],
-
-            // A3 — Family relationship management
+            ['relationships.view', 'A3', 'View family relationships and families'],
             ['relationships.manage', 'A3', 'Record family relationships'],
 
             // A4 — Purok population monitoring
@@ -37,48 +37,56 @@ class PermissionSeeder extends Seeder
             ['puroks.manage', 'A4', 'Maintain the purok list and purok leaders'],
 
             // A5 — Resident classification
-            ['classifications.manage', 'A5', 'Assign or revoke sectoral classifications'],
+            ['classifications.view', 'A5', 'View sectoral classifications'],
+            ['classifications.manage', 'A5', 'Record and verify sectoral classifications'],
+            ['classifications.configure', 'A5', 'Configure classification types'],
 
-            // A6 — Skills, achievements, livelihood registry
+            // A6 — Skills and achievements registry
+            ['a6.view', 'A6', 'View skills and achievements'],
             ['a6.manage', 'A6', 'Record and verify skills and achievements'],
-            ['a6.manage_health_linked', 'A6', 'Record health- and livelihood-linked skills only'],
 
-            // B1 — Certificates
-            ['clearance.approve', 'B1', 'Approve barangay clearance'],
-            ['certificates.issue', 'B1', 'Issue a certificate'],
-            ['certificates.prepare', 'B1', 'Prepare/receive a certificate request'],
-            ['certificates.release', 'B1', 'Release a printed certificate'],
-            ['fees.record', 'B1', 'Record a certificate fee payment'],
+            // Social assistance records (SRS §3.2.3.10)
+            ['assistance.view', 'A5', 'View social assistance received by residents'],
+            ['assistance.record', 'A5', 'Record social assistance received by residents'],
 
-            // B2 — Relief distribution
-            ['relief.create', 'B2', 'Create or close a relief distribution'],
+            // B2 / B4 — Relief distribution and smart allocation
+            ['relief.view', 'B2', 'View relief distributions'],
+            ['relief.create', 'B2', 'Create draft distributions and prepare beneficiary lists'],
             ['relief.record_claim', 'B2', 'Record a relief claim'],
-            ['relief.reverse_claim', 'B2', 'Reverse a recorded relief claim'],
+            ['relief.reverse_claim', 'B2', 'Reverse a relief claim with a recorded reason'],
+            ['f3.prepare', 'B4', 'Prepare a smart relief allocation plan'],
+            ['f3.approve', 'B4', 'Approve beneficiary lists and relief allocation plans'],
 
             // B3 — Population events
+            ['population_events.view', 'B3', 'View births, deaths, and transfers'],
             ['population_events.record', 'B3', 'Record a birth, death, or transfer'],
 
             // C2 — Reports
             ['reports.generate.all', 'C2', 'Generate any report'],
-            ['reports.generate.operational', 'C2', 'Generate operational reports'],
-            ['reports.generate.fees', 'C2', 'Generate fee reports'],
-            ['reports.generate.health', 'C2', 'Generate sectoral and vital reports'],
 
-            // D-series — Administration
+            // D1–D3 — Administration
             ['users.manage', 'D1', 'Manage user accounts, roles, and permissions'],
-            ['audit.view', 'D2', 'View the audit log'],
+            ['audit.view', 'D2', 'View the audit log and assistant logs'],
             ['backup.restore', 'D3', 'Trigger backups and restores'],
 
-            // F-series — Analytics
-            ['f1.confirm', 'F1', 'Review and confirm AI Resident Analysis suggestions'],
-            ['f1.read', 'F1', 'Read F1 suggestions and outputs'],
-            ['f2.manage', 'F2', 'Post opportunities and review skill matches'],
-            ['f3.prepare', 'F3', 'Prepare a smart relief allocation plan'],
-            ['f3.approve', 'F3', 'Approve a smart relief allocation plan'],
-            ['f4.view', 'F4', 'View the predictive/demographic dashboard'],
+            // E1 — Record copies
+            ['record_copies.issue', 'E1', 'Issue a printed copy of a resident record'],
 
-            // G1 — Consent and privacy
-            ['g1.configure', 'G1', 'Configure consent purposes and handle data-subject requests'],
+            // F1 / F2 — AI resident analysis and opportunity matching
+            ['f1.read', 'F1', 'View AI resident-analysis suggestions'],
+            ['f1.confirm', 'F1', 'Confirm or reject AI resident-analysis suggestions'],
+            ['f2.view', 'F2', 'View opportunities and shortlists'],
+            ['f2.manage', 'F2', 'Post opportunities and review skill matches'],
+
+            // G1 / G2 — Consent and data-subject requests
+            ['g1.record', 'G1', 'Record a resident consent or revocation'],
+            ['g1.configure', 'G1', 'Configure consent purposes'],
+            ['g2.receive', 'G2', 'Receive a data-subject request'],
+            ['g2.decide', 'G2', 'Decide a data-subject request'],
+
+            // H1 — AI-Powered Barangay Assistant (SDD Table 5.2)
+            ['assistant.use', 'H1', 'Use the AI-Powered Barangay Assistant'],
+            ['assistant.configure', 'H1', 'Configure assistant access per role and review assistant logs'],
         ];
 
         foreach ($permissions as [$name, $module, $description]) {

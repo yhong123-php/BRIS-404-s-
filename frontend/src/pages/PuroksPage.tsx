@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import client from '../api/client';
 import type { Purok } from '../api/types';
 
@@ -19,6 +20,7 @@ export default function PuroksPage() {
             <th>Number</th>
             <th>Residents</th>
             <th>Households</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -28,6 +30,9 @@ export default function PuroksPage() {
               <td>{p.purok_number}</td>
               <td>{p.residents_count}</td>
               <td>{p.households_count}</td>
+              <td>
+                <Link to={`/puroks/${p.id}`}>View statistics</Link>
+              </td>
             </tr>
           ))}
         </tbody>

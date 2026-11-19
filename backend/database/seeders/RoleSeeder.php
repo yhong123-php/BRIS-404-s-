@@ -6,20 +6,17 @@ use App\Models\Role;
 use Illuminate\Database\Seeder;
 
 /**
- * The five staff-side roles from SDD Table 6.0 (roles.name is an enum of
- * exactly these). Resident is a distinct actor authenticated through
- * resident_accounts, not a row in this table (SDD §3.5).
+ * The two user roles of SRS §2.3 / SDD Table 5.1. The Barangay Captain is the
+ * System Administrator. Residents are data subjects, not users — they have no
+ * accounts (SDD §1.2).
  */
 class RoleSeeder extends Seeder
 {
     public function run(): void
     {
         $roles = [
-            ['name' => 'captain', 'description' => 'Barangay Captain'],
-            ['name' => 'secretary', 'description' => 'Barangay Secretary — registry custodian, de facto administrator'],
-            ['name' => 'staff', 'description' => 'Barangay Staff'],
-            ['name' => 'treasurer', 'description' => 'Treasurer'],
-            ['name' => 'health_worker', 'description' => 'Health Worker'],
+            ['name' => 'captain', 'description' => 'Barangay Captain — System Administrator'],
+            ['name' => 'secretary', 'description' => 'Barangay Secretary — encodes resident records'],
         ];
 
         foreach ($roles as $role) {

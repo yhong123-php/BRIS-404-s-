@@ -110,20 +110,6 @@ class ResidentController extends Controller
     /**
      * Health Worker's field-level partial edit (SDD Table 9.0: "Partial").
      */
-    public function updateHealthFields(Request $request, Resident $resident)
-    {
-        $data = $request->validate([
-            'occupation' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'educational_attainment' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'monthly_income_bracket' => ['sometimes', 'nullable', 'string', 'max:255'],
-            'remarks' => ['sometimes', 'nullable', 'string'],
-        ]);
-
-        $this->residents->updateHealthFields($resident, $data);
-
-        return new ResidentResource($resident);
-    }
-
     public function merge(Request $request, Resident $resident)
     {
         $data = $request->validate([
@@ -141,6 +127,15 @@ class ResidentController extends Controller
         $data = $request->validate(['remarks' => ['nullable', 'string']]);
 
         $this->residents->archive($resident, $data['remarks'] ?? null);
+
+        return new ResidentResource($resident);
+    }
+
+    public function restore(Resident $resident)
+    {
+        abort_unless($resident->status === 'archived', 422, 'Only archived records can be restored.');
+
+        $this->residents->restore($resident);
 
         return new ResidentResource($resident);
     }

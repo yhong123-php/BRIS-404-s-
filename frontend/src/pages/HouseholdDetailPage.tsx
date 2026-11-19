@@ -8,6 +8,11 @@ export default function HouseholdDetailPage() {
   const [household, setHousehold] = useState<Household | null>(null);
 
   useEffect(() => {
+    // Reset first: this route doesn't remount when navigating directly
+    // between two households (e.g. browser back/forward through history),
+    // so without this the previous household would stay on screen under
+    // the new URL until the new fetch resolves.
+    setHousehold(null);
     client.get(`/admin/households/${id}`).then(({ data }) => setHousehold(data.data));
   }, [id]);
 

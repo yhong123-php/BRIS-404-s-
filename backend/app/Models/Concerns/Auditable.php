@@ -3,7 +3,6 @@
 namespace App\Models\Concerns;
 
 use App\Models\AuditLog;
-use App\Models\ResidentAccount;
 use App\Models\User;
 
 /**
@@ -70,7 +69,6 @@ trait Auditable
 
         AuditLog::create([
             'user_id' => $user instanceof User ? $user->id : null,
-            'resident_account_id' => $user instanceof ResidentAccount ? $user->id : null,
             'action' => $action,
             'module' => $this->auditModule(),
             'table_name' => $this->getTable(),
@@ -81,7 +79,6 @@ trait Auditable
             'user_agent' => $request?->userAgent(),
             'client_type' => match (true) {
                 $user instanceof User => 'staff',
-                $user instanceof ResidentAccount => 'portal',
                 default => 'system',
             },
         ]);

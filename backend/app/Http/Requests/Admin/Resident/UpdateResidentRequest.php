@@ -25,16 +25,25 @@ class UpdateResidentRequest extends FormRequest
             'citizenship' => ['nullable', 'string', 'max:255'],
             'religion' => ['nullable', 'string', 'max:255'],
             'occupation' => ['nullable', 'string', 'max:255'],
-            'educational_attainment' => ['nullable', 'string', 'max:255'],
-            'monthly_income_bracket' => ['nullable', 'string', 'max:255'],
-            'contact_number' => ['nullable', 'string', 'max:50'],
+            'employment_status' => ['nullable', 'in:'.implode(',', \App\Models\Resident::EMPLOYMENT_STATUSES)],
+            'educational_attainment' => ['nullable', 'in:'.implode(',', array_keys(\App\Models\Resident::EDUCATION_LEVELS))],
+            'monthly_income_bracket' => ['nullable', \Illuminate\Validation\Rule::in(\App\Models\Resident::INCOME_BRACKETS)],
+            'contact_number' => ['nullable', 'string', 'regex:/^(09\d{9}|\+639\d{9}|\(?0\d{1,3}\)?[ -]?\d{3,4}[ -]?\d{4})$/'],
             'email' => ['nullable', 'email', 'max:255'],
             'purok_id' => ['nullable', 'exists:puroks,id'],
             'house_number' => ['nullable', 'string', 'max:50'],
             'street' => ['nullable', 'string', 'max:255'],
             'voter_status' => ['nullable', 'in:registered,not_registered'],
-            'residency_start_date' => ['nullable', 'date'],
+            'residency_start_date' => ['nullable', 'date', 'before_or_equal:today'],
             'remarks' => ['nullable', 'string'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return [
+            'contact_number.regex' => 'Enter a mobile number like 09171234567 (or +639171234567), or a landline with area code.',
+            'residency_start_date.after_or_equal' => 'The resident cannot have lived here since before they were born.',
         ];
     }
 }

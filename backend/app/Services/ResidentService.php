@@ -84,18 +84,6 @@ class ResidentService
     }
 
     /**
-     * Health Worker's field-level partial edit (SDD Table 9.0: "Partial").
-     */
-    public function updateHealthFields(Resident $resident, array $data): Resident
-    {
-        $allowed = array_intersect_key($data, array_flip(Resident::HEALTH_EDITABLE_FIELDS));
-        $allowed['updated_by'] = Auth::id();
-        $resident->update($allowed);
-
-        return $resident;
-    }
-
-    /**
      * SDD §4.3 step 4: merge rewrites dependent foreign keys inside one
      * transaction. The duplicate is archived and soft-deleted rather than
      * hard-deleted, since it may already be referenced elsewhere and the
@@ -108,10 +96,9 @@ class ResidentService
         }
 
         return DB::transaction(function () use ($duplicate, $survivor) {
-            HouseholdMember::where('resident_id', $duplicate->id)->update(['resident_id' => $survivor->id]);
-            Relationship::where('resident_id', $duplicate->id)->update(['resident_id' => $survivor->id]);
-            Relationship::where('related_resident_id', $duplicate->id)->update(['related_resident_id' => $survivor->id]);
-            ResidentClassification::where('resident_id', $duplicate->id)->update(['resident_id' => $survivor->id]);
+            $this->reassignHouseholdMemberships($duplicate, $survivor);
+            $this->reassignRelationships($duplicate, $survivor);
+            $this->reassignClassifications($duplicate, $survivor);
             Skill::where('resident_id', $duplicate->id)->update(['resident_id' => $survivor->id]);
             Achievement::where('resident_id', $duplicate->id)->update(['resident_id' => $survivor->id]);
 
@@ -127,6 +114,93 @@ class ResidentService
     }
 
     /**
+     * Two duplicate records of the same person are the common case a merge
+     * exists for, so they very plausibly already share a household (or a
+     * relationship, or a classification) that was entered independently
+     * against each duplicate before anyone noticed. A blind bulk reassign of
+     * resident_id onto the survivor would then collide with the unique
+     * constraints below and throw a raw QueryException from inside a
+     * transaction that staff can't recover from through the UI. Each
+     * reassignment method here walks rows individually and drops a
+     * duplicate's row instead of reassigning it whenever the survivor
+     * already holds the equivalent record.
+     */
+    private function reassignHouseholdMemberships(Resident $duplicate, Resident $survivor): void
+    {
+        HouseholdMember::where('resident_id', $duplicate->id)->get()->each(function (HouseholdMember $member) use ($survivor) {
+            $collides = HouseholdMember::where('household_id', $member->household_id)
+                ->where('resident_id', $survivor->id)
+                ->where('date_joined', $member->date_joined)
+                ->exists();
+
+            // Also guard the "at most one open household" invariant
+            // (SDD §4.3) HouseholdService::addMember() otherwise enforces:
+            // don't leave the survivor with two simultaneously-open rows.
+            $survivorHasOpenElsewhere = is_null($member->date_left)
+                && HouseholdMember::where('resident_id', $survivor->id)
+                    ->where('household_id', '!=', $member->household_id)
+                    ->whereNull('date_left')
+                    ->exists();
+
+            if ($collides) {
+                $member->delete();
+            } elseif ($survivorHasOpenElsewhere) {
+                $member->update(['resident_id' => $survivor->id, 'date_left' => now()->toDateString()]);
+            } else {
+                $member->update(['resident_id' => $survivor->id]);
+            }
+        });
+    }
+
+    private function reassignRelationships(Resident $duplicate, Resident $survivor): void
+    {
+        Relationship::where('resident_id', $duplicate->id)->get()->each(function (Relationship $rel) use ($survivor) {
+            if ($rel->related_resident_id === $survivor->id) {
+                $rel->delete(); // the duplicate and survivor were linked to each other
+
+                return;
+            }
+
+            $collides = Relationship::where('resident_id', $survivor->id)
+                ->where('related_resident_id', $rel->related_resident_id)
+                ->where('relationship_type', $rel->relationship_type)
+                ->exists();
+
+            $collides ? $rel->delete() : $rel->update(['resident_id' => $survivor->id]);
+        });
+
+        Relationship::where('related_resident_id', $duplicate->id)->get()->each(function (Relationship $rel) use ($survivor) {
+            if ($rel->resident_id === $survivor->id) {
+                $rel->delete();
+
+                return;
+            }
+
+            $collides = Relationship::where('related_resident_id', $survivor->id)
+                ->where('resident_id', $rel->resident_id)
+                ->where('relationship_type', $rel->relationship_type)
+                ->exists();
+
+            $collides ? $rel->delete() : $rel->update(['related_resident_id' => $survivor->id]);
+        });
+    }
+
+    private function reassignClassifications(Resident $duplicate, Resident $survivor): void
+    {
+        ResidentClassification::where('resident_id', $duplicate->id)->get()->each(function (ResidentClassification $classification) use ($survivor) {
+            $collides = $classification->status === 'active'
+                && ResidentClassification::where('resident_id', $survivor->id)
+                    ->where('classification_type_id', $classification->classification_type_id)
+                    ->where('status', 'active')
+                    ->exists();
+
+            $collides
+                ? $classification->delete()
+                : $classification->update(['resident_id' => $survivor->id]);
+        });
+    }
+
+    /**
      * SDD §4.3: a resident cannot be deleted once referenced; status becomes
      * deceased, transferred_out, or archived instead.
      */
@@ -135,6 +209,21 @@ class ResidentService
         $resident->update([
             'status' => 'archived',
             'remarks' => $remarks ?? $resident->remarks,
+            'updated_by' => Auth::id(),
+        ]);
+
+        return $resident;
+    }
+
+    /**
+     * SRS §2.3 / SDD Table 5.1: only the Barangay Captain restores an archived
+     * record. Deceased and transferred-out records are changed through
+     * population events (B3), not restored here.
+     */
+    public function restore(Resident $resident): Resident
+    {
+        $resident->update([
+            'status' => 'active',
             'updated_by' => Auth::id(),
         ]);
 

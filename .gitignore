@@ -1,0 +1,4 @@
+# Local-only copies of the capstone documents (the updated versions are in docs/)
+* (1).docx
+# Word lock files
+~$*.docx

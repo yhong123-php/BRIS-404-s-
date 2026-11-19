@@ -4,18 +4,19 @@ namespace App\Http\Controllers\Admin\Auth;
 
 use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 /**
- * Staff authentication against the `users` table (SDD §5.1). Resident portal
- * auth against resident_accounts is a separate controller in the E-series,
- * kept apart so a resident credential can never resolve to a staff token.
+ * Authentication of the two user roles against the `users` table (SDD §5.1).
+ * Accounts are created only by the Barangay Captain (User Management, D1);
+ * residents have no accounts.
  */
 class StaffAuthController extends Controller
 {
@@ -60,6 +61,12 @@ class StaffAuthController extends Controller
 
             throw ValidationException::withMessages([
                 'login' => 'The provided credentials are incorrect.',
+            ]);
+        }
+
+        if (! $user->email_verified_at) {
+            throw ValidationException::withMessages([
+                'login' => 'This account is not registered or verified.',
             ]);
         }
 
@@ -158,7 +165,7 @@ class StaffAuthController extends Controller
 
     private function presentUser(User $user): array
     {
-        $user->loadMissing('role');
+        $user->loadMissing('role.permissions');
 
         return [
             'id' => $user->id,
@@ -168,6 +175,8 @@ class StaffAuthController extends Controller
             'role' => $user->role->name,
             'position' => $user->position,
             'must_change_password' => $user->must_change_password,
+            // The role's permissions, so the interface hides exactly what the API would refuse (SDD §2.3).
+            'permissions' => $user->role->permissions->pluck('name')->values()->all(),
         ];
     }
 }

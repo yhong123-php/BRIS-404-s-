@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    // H1 — AI-Powered Barangay Assistant: locally hosted model via Ollama (SPMP §5.5.4).
+    'ollama' => [
+        'url' => env('OLLAMA_URL', 'http://127.0.0.1:11434'),
+        'model' => env('OLLAMA_MODEL', 'qwen2.5:3b'),
+        // Seconds before the assistant reports itself temporarily unavailable (SRS §3.3.3).
+        'timeout' => env('OLLAMA_TIMEOUT', 180),
+        // Days a conversation is kept before deletion (SPMP §5.5.5; confirm with the barangay).
+        'retention_days' => env('ASSISTANT_RETENTION_DAYS', 30),
+    ],
+
+    // D3 — Backup and restore (SDD §6). Paths to the MySQL client tools.
+    'backup' => [
+        'mysqldump' => env('MYSQLDUMP_PATH', 'mysqldump'),
+        'mysql' => env('MYSQL_CLIENT_PATH', 'mysql'),
+    ],
+
 ];

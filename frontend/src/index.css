@@ -11,6 +11,33 @@
   font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+/*
+ * These tokens never had a dark-mode variant, because dark mode didn't
+ * exist when this system was built — ThemeContext.tsx (added later, for the
+ * Tailwind-rewritten pages) toggles a `.dark` class on <html>, but every
+ * page still running on this plain-CSS system (Puroks, purok statistics,
+ * Households, Families, Audit Log, and the resident/household detail pages)
+ * kept using the fixed light-mode values above regardless. Once the new
+ * Tailwind shell (Layout.tsx) started giving the page itself a dark
+ * background, any un-boxed text here — a bare <h2>, a label not sitting
+ * inside a .data-table/.stat-tile/.auth-card — became dark-on-dark and
+ * effectively invisible; .data-table itself stayed a stark white box
+ * floating in an otherwise dark page. Same WCAG-verified approach as the
+ * Tailwind palette: --primary and --danger get lighter dark-mode variants
+ * (their light-mode shades were already dark enough to read fine on white,
+ * so only the missing dark-mode side needed fixing).
+ */
+:root.dark {
+  --bg: #111827;
+  --surface: #1f2937;
+  --border: #374151;
+  --text: #f3f4f6;
+  --muted: #9ca3af;
+  --primary: #34d399;
+  --primary-dark: #10b981;
+  --danger: #f87171;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -65,6 +92,34 @@ label {
   color: var(--muted);
 }
 
+.password-field {
+  position: relative;
+  display: flex;
+}
+
+.password-field input {
+  width: 100%;
+  padding-right: 2.25rem;
+}
+
+.password-toggle {
+  position: absolute;
+  right: 0.4rem;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  padding: 0.2rem;
+  color: var(--muted);
+}
+
+.password-toggle:hover {
+  color: var(--text);
+}
+
 /* Auth pages */
 .auth-page {
   min-height: 100vh;
@@ -95,76 +150,6 @@ label {
   margin: 0;
   color: var(--muted);
   font-size: 0.85rem;
-}
-
-/* App shell */
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.75rem 1.5rem;
-  background: var(--primary);
-  color: white;
-}
-
-.app-header h1 {
-  font-size: 1.1rem;
-  margin: 0;
-}
-
-.app-header-user {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  font-size: 0.85rem;
-}
-
-.app-header-user button {
-  background: transparent;
-  border-color: rgba(255, 255, 255, 0.6);
-  color: white;
-}
-
-.app-body {
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-
-.app-nav {
-  width: 200px;
-  background: var(--surface);
-  border-right: 1px solid var(--border);
-  padding: 1rem 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.app-nav a {
-  padding: 0.6rem 1.2rem;
-  color: var(--text);
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.app-nav a.active {
-  background: rgba(28, 107, 58, 0.1);
-  color: var(--primary);
-  font-weight: 600;
-  border-right: 3px solid var(--primary);
-}
-
-.app-main {
-  flex: 1;
-  padding: 1.5rem 2rem;
-  max-width: 1100px;
-  overflow-y: auto;
 }
 
 .page-header {
@@ -267,6 +252,63 @@ label {
   margin-bottom: 1.2rem;
 }
 
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 1rem;
+  margin: 1.2rem 0;
+}
+
+.stat-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 1rem 1.2rem;
+}
+
+.stat-tile-value {
+  font-size: 1.8rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.stat-tile-label {
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-top: 0.2rem;
+}
+
+.stat-tile-breakdown {
+  font-size: 0.75rem;
+  color: var(--muted);
+  margin-top: 0.4rem;
+}
+
+.activity-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.activity-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.activity-list li:last-child {
+  border-bottom: none;
+}
+
+.activity-list .activity-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
 .detail-grid {
   display: grid;
   grid-template-columns: 140px 1fr;
@@ -307,6 +349,29 @@ label {
   margin-bottom: 1rem;
 }
 
+/* These three components have fixed, hand-picked light-mode backgrounds
+   (not var()-based like the rest of this file), so they need their own
+   explicit dark-mode fills — otherwise, e.g., .suggestion-row's text
+   correctly turns light via --text's dark override above, while its
+   .suggestion-box parent stays pale yellow underneath it: light text on a
+   near-white box. */
+:root.dark .status-badge {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--primary);
+}
+
+:root.dark .status-archived,
+:root.dark .status-deceased,
+:root.dark .status-transferred_out {
+  background: rgba(156, 163, 175, 0.15);
+  color: var(--muted);
+}
+
+:root.dark .suggestion-box {
+  background: rgba(217, 158, 6, 0.12);
+  border-color: rgba(217, 158, 6, 0.35);
+}
+
 .suggestion-row {
   display: flex;
   justify-content: space-between;
@@ -319,4 +384,47 @@ label {
   color: var(--muted);
   font-weight: 400;
   font-size: 0.9rem;
+}
+
+/* ---- Shared module UI (B1–G2) ---- */
+.section-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap; }
+.picked { padding: 0.4rem 0; }
+.badge { display: inline-block; padding: 0.1rem 0.55rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; text-transform: capitalize; white-space: nowrap; }
+.badge-neutral { background: color-mix(in srgb, var(--muted) 18%, transparent); color: var(--text); }
+.badge-good { background: color-mix(in srgb, #16a34a 18%, transparent); color: #15803d; }
+.badge-warn { background: color-mix(in srgb, #d97706 20%, transparent); color: #b45309; }
+.badge-bad { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+.badge-info { background: color-mix(in srgb, #2563eb 16%, transparent); color: #1d4ed8; }
+:root.dark .badge-good { color: #4ade80; } :root.dark .badge-warn { color: #fbbf24; } :root.dark .badge-info { color: #93c5fd; }
+.tabs { display: flex; gap: 0.4rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.tabs button.active { background: var(--primary); border-color: var(--primary); color: white; }
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem; }
+.panel h4 { margin-top: 0; }
+.table-scroll { overflow-x: auto; }
+.row-actions { display: flex; gap: 0.35rem; flex-wrap: wrap; }
+.row-actions button { padding: 0.25rem 0.55rem; font-size: 0.8rem; }
+.note { font-size: 0.85rem; color: var(--muted); }
+.callout { border-left: 4px solid var(--primary); background: color-mix(in srgb, var(--primary) 8%, var(--surface)); padding: 0.6rem 0.9rem; border-radius: 6px; margin-bottom: 1rem; }
+.callout-warn { border-left-color: #d97706; background: color-mix(in srgb, #d97706 10%, var(--surface)); }
+.projection { border: 2px dashed #d97706; }
+.form-grid label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.85rem; }
+textarea { padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--text); font: inherit; }
+
+/* ---- Printable documents (record copies, reports) ---- */
+.print-page { background: white; color: #111; max-width: 8.5in; margin: 0 auto; padding: 0.75in; font-family: 'Times New Roman', Georgia, serif; }
+.print-page .data-table { background: white; color: #111; }
+.print-toolbar { max-width: 8.5in; margin: 1rem auto; display: flex; gap: 0.5rem; justify-content: flex-end; }
+.doc-header { text-align: center; line-height: 1.35; margin-bottom: 1.5rem; }
+.doc-barangay { font-weight: bold; font-size: 1.1rem; }
+.doc-office { margin-top: 0.6rem; font-weight: bold; letter-spacing: 0.05em; }
+.doc-title { margin: 1.2rem 0 0; letter-spacing: 0.08em; text-decoration: underline; }
+.doc-body { font-size: 1.05rem; line-height: 1.9; text-align: justify; }
+.doc-signature { margin-top: 3rem; display: flex; justify-content: flex-end; text-align: center; }
+.doc-signature .line { border-top: 1px solid #111; min-width: 16rem; padding-top: 0.25rem; font-weight: bold; }
+.doc-meta { margin-top: 2rem; font-size: 0.85rem; }
+@media print {
+  .no-print,
+  .print-toolbar, aside, header, nav { display: none !important; }
+  body { background: white; }
+  .print-page { padding: 0; max-width: none; }
 }

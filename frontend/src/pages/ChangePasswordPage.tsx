@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
+import PasswordInput from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
 
 export default function ChangePasswordPage() {
@@ -41,15 +42,15 @@ export default function ChangePasswordPage() {
         {error && <div className="form-error">{error}</div>}
         <label>
           Current password
-          <input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required />
+          <PasswordInput value={currentPassword} onChange={setCurrentPassword} required />
         </label>
         <label>
           New password
-          <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} required minLength={8} />
+          <PasswordInput value={newPassword} onChange={setNewPassword} required minLength={8} />
         </label>
         <label>
           Confirm new password
-          <input type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required minLength={8} />
+          <PasswordInput value={confirm} onChange={setConfirm} required minLength={8} />
         </label>
         <button type="submit" disabled={submitting}>
           {submitting ? 'Saving…' : 'Save and continue'}

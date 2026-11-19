@@ -1,66 +1,160 @@
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import client from '../api/client';
-import type { Purok, Resident } from '../api/types';
+import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, INCOME_BRACKETS, type Purok, type Resident } from '../api/types';
+import { apiError } from '../components/ui';
+import { useAuth } from '../context/AuthContext';
+import { useToast } from '../context/ToastContext';
+
+/**
+ * A1 — Resident registration (SDD §4.3, Table 3.1). The full resident record in
+ * one form: personal, address and residency, contact, livelihood and education,
+ * household membership (step 2), sector classifications, and the signed consent
+ * form (step 6). Duplicate detection runs before the record is saved (steps 3–4).
+ */
 
 interface DuplicateCandidate {
-  // Note: the backend nests this ResidentResource inside a plain array
-  // response, so Laravel does not apply its usual {"data": ...} envelope
-  // here (that only happens when a resource is the top-level controller
-  // return value) — this is the raw resident object, not resident.data.
+  // The backend nests this resource inside a plain array, so there is no {"data": ...} envelope.
   resident: Resident;
   similarity_percent: number;
   same_birth_date: boolean;
 }
+interface ClassificationType { id: number; name: string; requires_reference_number: boolean; requires_document: boolean; is_age_derived: boolean; min_age: number | null; is_active?: boolean }
+interface HouseholdOption { id: number; household_number: string; house_number: string | null; street: string | null }
+interface ConsentPurpose { id: number; code: string; name: string; description: string | null; is_active: boolean }
+
+const RELATIONSHIPS = ['head', 'spouse', 'son', 'daughter', 'father', 'mother', 'grandchild', 'grandparent', 'sibling', 'relative', 'boarder', 'helper', 'other'];
+const RELIGIONS = ['Roman Catholic', 'Iglesia ni Cristo', 'Seventh-day Adventist', 'Baptist', 'Born Again Christian', 'Islam', 'Jehovah’s Witness', 'Aglipayan', 'Other', 'None'];
 
 const initialForm = {
-  last_name: '',
-  first_name: '',
-  middle_name: '',
-  suffix: '',
-  sex: 'male',
-  birth_date: '',
-  civil_status: 'single',
-  purok_id: '',
-  contact_number: '',
-  occupation: '',
+  last_name: '', first_name: '', middle_name: '', suffix: '',
+  sex: 'male', birth_date: '', birth_place: '', civil_status: 'single', citizenship: 'Filipino', religion: '',
+  purok_id: '', house_number: '', street: '', residency_start_date: '', voter_status: '',
+  contact_number: '', email: '',
+  occupation: '', employment_status: '', monthly_income_bracket: '', educational_attainment: '',
+  remarks: '',
 };
 
+function ageFrom(birthDate: string): number | null {
+  if (!birthDate) return null;
+  const b = new Date(birthDate);
+  if (Number.isNaN(b.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - b.getFullYear();
+  if (now.getMonth() < b.getMonth() || (now.getMonth() === b.getMonth() && now.getDate() < b.getDate())) age--;
+  return age;
+}
+
+function Fieldset({ title, note, children }: { title: string; note?: string; children: ReactNode }) {
+  return (
+    <fieldset className="panel" style={{ border: '1px solid var(--border)' }}>
+      <legend style={{ fontWeight: 600, padding: '0 0.4rem' }}>{title}</legend>
+      {note && <p className="note" style={{ marginTop: 0 }}>{note}</p>}
+      <div className="form-grid">{children}</div>
+    </fieldset>
+  );
+}
+
 export default function ResidentCreatePage() {
+  const { hasPermission } = useAuth();
+  const toast = useToast();
+  const navigate = useNavigate();
   const [form, setForm] = useState(initialForm);
   const [puroks, setPuroks] = useState<Purok[]>([]);
+  const [households, setHouseholds] = useState<HouseholdOption[]>([]);
+  const [household, setHousehold] = useState({ household_id: '', relationship_to_head: '' });
+  const [types, setTypes] = useState<ClassificationType[]>([]);
+  const [sectors, setSectors] = useState<Record<number, { checked: boolean; reference_number: string; document_path: string }>>({});
+  const [purposes, setPurposes] = useState<ConsentPurpose[]>([]);
+  const [consents, setConsents] = useState<Record<number, boolean>>({});
+  const [consentForm, setConsentForm] = useState('');
   const [candidates, setCandidates] = useState<DuplicateCandidate[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const navigate = useNavigate();
 
   useEffect(() => {
     client.get('/admin/puroks').then(({ data }) => setPuroks(data.data));
-  }, []);
+    if (hasPermission('classifications.manage')) client.get('/admin/classification-types').then(({ data }) => setTypes(data.data.filter((t: ClassificationType) => t.is_active !== false))).catch(() => undefined);
+    if (hasPermission('g1.record')) client.get('/admin/consent-purposes').then(({ data }) => setPurposes(data.data.filter((p: ConsentPurpose) => p.is_active))).catch(() => undefined);
+  }, [hasPermission]);
 
-  const update = (field: keyof typeof initialForm) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setForm((f) => ({ ...f, [field]: e.target.value }));
+  // Households of the chosen purok, for SDD §4.3 step 2.
+  useEffect(() => {
+    if (!form.purok_id || !hasPermission('households.manage')) return;
+    client.get('/admin/households', { params: { purok_id: form.purok_id, per_page: 200 } }).then(({ data }) => setHouseholds(data.data)).catch(() => setHouseholds([]));
+  }, [form.purok_id, hasPermission]);
+
+  const age = useMemo(() => ageFrom(form.birth_date), [form.birth_date]);
+  const update = (field: keyof typeof initialForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [field]: e.target.value }));
+  const setSector = (id: number, patch: Partial<{ checked: boolean; reference_number: string; document_path: string }>) =>
+    setSectors((s) => ({ ...s, [id]: { ...(s[id] ?? { checked: false, reference_number: '', document_path: '' }), ...patch } }));
+
+  // Senior Citizen is suggested from age (SDD §4.7: derived, but recorded explicitly).
+  const suggested = types.filter((t) => t.is_age_derived && t.min_age !== null && age !== null && age >= t.min_age);
+  const purokHouseholds = form.purok_id ? households : [];
+
+  /** After the resident is saved: household, sectors, consent. Problems are reported, not fatal. */
+  const finishRegistration = async (resident: Resident) => {
+    const problems: string[] = [];
+    if (household.household_id) {
+      try {
+        await client.post(`/admin/households/${household.household_id}/members`, {
+          resident_id: resident.id, relationship_to_head: household.relationship_to_head || null, is_head: household.relationship_to_head === 'head',
+        });
+      } catch (err) {
+        problems.push(`Household: ${apiError(err)}`);
+      }
+    }
+    for (const t of types) {
+      const s = sectors[t.id];
+      if (!s?.checked) continue;
+      try {
+        await client.post(`/admin/residents/${resident.id}/classifications`, {
+          classification_type_id: t.id, reference_number: s.reference_number || null, document_path: s.document_path || null,
+        });
+      } catch (err) {
+        problems.push(`${t.name}: ${apiError(err)}`);
+      }
+    }
+    for (const p of purposes) {
+      if (!consents[p.id]) continue;
+      try {
+        await client.post(`/admin/residents/${resident.id}/consents`, { consent_purpose_id: p.id, status: 'granted', form_path: consentForm || null });
+      } catch (err) {
+        problems.push(`Consent (${p.name}): ${apiError(err)}`);
+      }
+    }
+    if (problems.length) {
+      toast.error(`Resident registered, but some details need attention on the resident's page: ${problems.join(' · ')}`);
+    } else {
+      toast.success(`${resident.full_name} registered.`);
+    }
+    navigate(`/residents/${resident.id}`);
   };
 
   const submit = async (acknowledged: boolean) => {
     setError(null);
+    // Checks that are easier to fix before saving.
+    for (const t of types) {
+      const s = sectors[t.id];
+      if (s?.checked && t.requires_reference_number && !s.reference_number.trim()) return setError(`${t.name} needs a reference number (e.g. ID number).`);
+      if (s?.checked && t.requires_document && !s.document_path.trim()) return setError(`${t.name} needs a supporting document reference.`);
+    }
+    if (household.household_id && !household.relationship_to_head) return setError('Choose the relationship to the household head.');
+    if (Object.values(consents).some(Boolean) && !consentForm.trim()) return setError('Enter the reference of the signed consent form.');
+
     setSubmitting(true);
     try {
-      const payload = {
-        ...form,
-        purok_id: form.purok_id || null,
-        duplicate_check_acknowledged: acknowledged,
-      };
+      const payload = Object.fromEntries(Object.entries({ ...form, duplicate_check_acknowledged: acknowledged }).map(([k, v]) => [k, v === '' ? null : v]));
       const { data } = await client.post('/admin/residents', payload);
-      navigate(`/residents/${data.data.id}`);
-    } catch (err: any) {
-      if (err?.response?.status === 409) {
-        setCandidates(err.response.data.candidates);
+      await finishRegistration(data.data);
+    } catch (err: unknown) {
+      const res = (err as { response?: { status?: number; data?: { candidates?: DuplicateCandidate[] } } }).response;
+      if (res?.status === 409 && res.data?.candidates) {
+        setCandidates(res.data.candidates);
       } else {
-        const messages = err?.response?.data?.errors
-          ? Object.values(err.response.data.errors).flat().join(' ')
-          : err?.response?.data?.message ?? 'Could not save resident.';
-        setError(messages);
+        setError(apiError(err, 'Could not save the resident.'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     } finally {
       setSubmitting(false);
@@ -78,33 +172,26 @@ export default function ResidentCreatePage() {
       <div>
         <h2>Possible Duplicate Residents Found</h2>
         <p>
-          The system found {candidates.length} existing resident(s) that may match "{form.first_name} {form.last_name}".
-          Review before continuing (SDD §4.3).
+          {candidates.length} existing resident(s) may match “{form.first_name} {form.last_name}”. Check that this is a different person before continuing (SDD §4.3).
         </p>
         <table className="data-table">
-          <thead>
-            <tr>
-              <th>Resident #</th>
-              <th>Name</th>
-              <th>Birth Date</th>
-              <th>Similarity</th>
-            </tr>
-          </thead>
+          <thead><tr><th>Resident #</th><th>Name</th><th>Birth date</th><th>Purok</th><th>Similarity</th></tr></thead>
           <tbody>
             {candidates.map((c) => (
               <tr key={c.resident.id}>
                 <td>{c.resident.resident_number}</td>
-                <td>{c.resident.full_name}</td>
+                <td><a href={`/residents/${c.resident.id}`} target="_blank" rel="noreferrer">{c.resident.full_name}</a></td>
                 <td>{c.resident.birth_date}</td>
-                <td>{c.similarity_percent}%{c.same_birth_date ? ' (same DOB)' : ''}</td>
+                <td>{c.resident.purok?.name ?? '—'}</td>
+                <td>{c.similarity_percent}%{c.same_birth_date ? ' (same birth date)' : ''}</td>
               </tr>
             ))}
           </tbody>
         </table>
         <div className="form-actions">
-          <button onClick={() => setCandidates(null)}>Cancel, let me edit</button>
+          <button onClick={() => setCandidates(null)}>Go back and edit</button>
           <button className="button-primary" disabled={submitting} onClick={() => submit(true)}>
-            {submitting ? 'Saving…' : 'This is a distinct resident — register anyway'}
+            {submitting ? 'Saving…' : 'This is a different person — register'}
           </button>
         </div>
       </div>
@@ -113,71 +200,169 @@ export default function ResidentCreatePage() {
 
   return (
     <div>
-      <h2>Register Resident</h2>
+      <div className="page-header">
+        <h2>Register Resident</h2>
+      </div>
+      <p className="note">Fields marked * are required. Everything else can be added later from the resident’s page.</p>
       <form onSubmit={handleSubmit} className="resident-form">
         {error && <div className="form-error">{error}</div>}
-        <div className="form-grid">
-          <label>
-            Last Name *
-            <input value={form.last_name} onChange={update('last_name')} required />
-          </label>
-          <label>
-            First Name *
-            <input value={form.first_name} onChange={update('first_name')} required />
-          </label>
-          <label>
-            Middle Name
-            <input value={form.middle_name} onChange={update('middle_name')} />
-          </label>
+
+        <Fieldset title="1. Personal information">
+          <label>Last name *<input value={form.last_name} onChange={update('last_name')} required /></label>
+          <label>First name *<input value={form.first_name} onChange={update('first_name')} required /></label>
+          <label>Middle name<input value={form.middle_name} onChange={update('middle_name')} /></label>
           <label>
             Suffix
-            <input value={form.suffix} onChange={update('suffix')} />
+            <select value={form.suffix} onChange={update('suffix')}>
+              <option value="">—</option>
+              {['Jr.', 'Sr.', 'II', 'III', 'IV'].map((s) => <option key={s}>{s}</option>)}
+            </select>
           </label>
           <label>
             Sex *
-            <select value={form.sex} onChange={update('sex')}>
-              <option value="male">Male</option>
-              <option value="female">Female</option>
-            </select>
+            <select value={form.sex} onChange={update('sex')}><option value="male">Male</option><option value="female">Female</option></select>
           </label>
           <label>
-            Birth Date *
-            <input type="date" value={form.birth_date} onChange={update('birth_date')} required />
+            Birth date *
+            <input type="date" value={form.birth_date} onChange={update('birth_date')} max={new Date().toISOString().slice(0, 10)} required />
+            {age !== null && <span className="note">Age: {age}</span>}
           </label>
+          <label>Birthplace<input value={form.birth_place} onChange={update('birth_place')} placeholder="Town / city, province" /></label>
           <label>
-            Civil Status *
+            Civil status *
             <select value={form.civil_status} onChange={update('civil_status')}>
-              <option value="single">Single</option>
-              <option value="married">Married</option>
-              <option value="widowed">Widowed</option>
-              <option value="separated">Separated</option>
-              <option value="divorced">Divorced</option>
-              <option value="annulled">Annulled</option>
+              {['single', 'married', 'widowed', 'separated', 'divorced', 'annulled'].map((c) => <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>)}
+            </select>
+          </label>
+          <label>Citizenship<input value={form.citizenship} onChange={update('citizenship')} /></label>
+          <label>
+            Religion
+            <select value={form.religion} onChange={update('religion')}>
+              <option value="">—</option>
+              {RELIGIONS.map((r) => <option key={r}>{r}</option>)}
+            </select>
+          </label>
+        </Fieldset>
+
+        <Fieldset title="2. Address and residency" note="A resident may be registered before being assigned to a household.">
+          <label>
+            Purok *
+            <select value={form.purok_id} onChange={(e) => { update('purok_id')(e); setHousehold({ household_id: '', relationship_to_head: '' }); }} required>
+              <option value="">Select purok…</option>
+              {puroks.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </label>
+          <label>House number<input value={form.house_number} onChange={update('house_number')} /></label>
+          <label>Street / sitio<input value={form.street} onChange={update('street')} /></label>
+          <label>
+            Resident of the barangay since
+            <input type="date" value={form.residency_start_date} onChange={update('residency_start_date')} min={form.birth_date || undefined} max={new Date().toISOString().slice(0, 10)} />
+          </label>
+          <label>
+            Voter status
+            <select value={form.voter_status} onChange={update('voter_status')}>
+              <option value="">—</option>
+              <option value="registered">Registered voter</option>
+              <option value="not_registered">Not registered</option>
+            </select>
+          </label>
+          {hasPermission('households.manage') && (
+            <>
+              <label>
+                Household
+                <select value={household.household_id} onChange={(e) => setHousehold({ ...household, household_id: e.target.value })} disabled={!form.purok_id}>
+                  <option value="">{form.purok_id ? (purokHouseholds.length ? 'Not yet assigned' : 'No households in this purok yet') : 'Choose the purok first'}</option>
+                  {purokHouseholds.map((h) => <option key={h.id} value={h.id}>{h.household_number}{h.house_number || h.street ? ` — ${[h.house_number, h.street].filter(Boolean).join(' ')}` : ''}</option>)}
+                </select>
+              </label>
+              {household.household_id && (
+                <label>
+                  Relationship to household head *
+                  <select value={household.relationship_to_head} onChange={(e) => setHousehold({ ...household, relationship_to_head: e.target.value })}>
+                    <option value="">Select…</option>
+                    {RELATIONSHIPS.map((r) => <option key={r} value={r}>{r === 'head' ? 'Is the household head' : r[0].toUpperCase() + r.slice(1)}</option>)}
+                  </select>
+                </label>
+              )}
+            </>
+          )}
+        </Fieldset>
+
+        <Fieldset title="3. Contact">
+          <label>Mobile / phone number<input value={form.contact_number} onChange={update('contact_number')} placeholder="09171234567" inputMode="tel" /></label>
+          <label>Email<input type="email" value={form.email} onChange={update('email')} /></label>
+        </Fieldset>
+
+        <Fieldset title="4. Livelihood and education" note="Used for employment, skills, and education reports and the AI assistant.">
+          <label>Occupation<input value={form.occupation} onChange={update('occupation')} placeholder="e.g. Farmer, Vendor, Teacher" /></label>
+          <label>
+            Employment status
+            <select value={form.employment_status} onChange={update('employment_status')}>
+              <option value="">— not recorded —</option>
+              {Object.entries(EMPLOYMENT_STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </select>
           </label>
           <label>
-            Purok
-            <select value={form.purok_id} onChange={update('purok_id')}>
-              <option value="">— none —</option>
-              {puroks.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
+            Monthly household income
+            <select value={form.monthly_income_bracket} onChange={update('monthly_income_bracket')}>
+              <option value="">— not recorded —</option>
+              {INCOME_BRACKETS.map((b) => <option key={b} value={b}>{b === 'No income' ? b : `₱${b}`}</option>)}
             </select>
           </label>
           <label>
-            Contact Number
-            <input value={form.contact_number} onChange={update('contact_number')} />
+            Highest educational attainment
+            <select value={form.educational_attainment} onChange={update('educational_attainment')}>
+              <option value="">— not recorded —</option>
+              {Object.entries(EDUCATION_LEVELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
           </label>
-          <label>
-            Occupation
-            <input value={form.occupation} onChange={update('occupation')} />
+        </Fieldset>
+
+        {types.length > 0 && (
+          <Fieldset title="5. Sector classifications" note="Tick only sectors supported by a document or ID. Senior Citizen is suggested from age but still needs the OSCA ID.">
+            {types.map((t) => {
+              const s = sectors[t.id];
+              const isSuggested = suggested.some((x) => x.id === t.id);
+              return (
+                <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.85rem' }}>
+                  <label style={{ flexDirection: 'row', alignItems: 'center', gap: '0.4rem' }}>
+                    <input type="checkbox" checked={!!s?.checked} onChange={(e) => setSector(t.id, { checked: e.target.checked })} />
+                    {t.name}
+                    {isSuggested && !s?.checked && <span className="badge badge-info">suggested (age {age})</span>}
+                  </label>
+                  {s?.checked && t.requires_reference_number && <input placeholder="Reference / ID number *" value={s.reference_number} onChange={(e) => setSector(t.id, { reference_number: e.target.value })} />}
+                  {s?.checked && t.requires_document && <input placeholder="Supporting document *" value={s.document_path} onChange={(e) => setSector(t.id, { document_path: e.target.value })} />}
+                </div>
+              );
+            })}
+          </Fieldset>
+        )}
+
+        {purposes.length > 0 && (
+          <Fieldset title="6. Consent (Data Privacy Act)" note="Record only what the resident opted into on the signed consent form. Registration itself does not depend on consent.">
+            {purposes.map((p) => (
+              <label key={p.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: '0.4rem' }}>
+                <input type="checkbox" checked={!!consents[p.id]} onChange={(e) => setConsents({ ...consents, [p.id]: e.target.checked })} style={{ marginTop: '0.2rem' }} />
+                <span><strong>{p.name}</strong>{p.description ? <span className="note"> — {p.description}</span> : null}</span>
+              </label>
+            ))}
+            {Object.values(consents).some(Boolean) && (
+              <label>Signed consent form reference *<input value={consentForm} onChange={(e) => setConsentForm(e.target.value)} placeholder="e.g. scanned file name or form no." /></label>
+            )}
+          </Fieldset>
+        )}
+
+        <Fieldset title="7. Remarks">
+          <label style={{ gridColumn: '1 / -1' }}>
+            Notes
+            <textarea rows={3} value={form.remarks} onChange={update('remarks')} />
           </label>
-        </div>
+        </Fieldset>
+
         <div className="form-actions">
+          <button type="button" onClick={() => navigate(-1)}>Cancel</button>
           <button type="submit" className="button-primary" disabled={submitting}>
-            {submitting ? 'Checking…' : 'Register Resident'}
+            {submitting ? 'Checking for duplicates…' : 'Register resident'}
           </button>
         </div>
       </form>

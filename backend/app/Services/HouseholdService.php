@@ -65,6 +65,25 @@ class HouseholdService
                 $this->demoteCurrentHead($household);
             }
 
+            // Resident already has an open membership in this same household
+            // (re-add, or a double-submitted request) — update it in place
+            // instead of inserting a second row for today, which would
+            // collide with the (household_id, resident_id, date_joined)
+            // unique constraint.
+            $existing = HouseholdMember::where('household_id', $household->id)
+                ->where('resident_id', $residentId)
+                ->whereNull('date_left')
+                ->first();
+
+            if ($existing) {
+                $existing->update([
+                    'relationship_to_head' => $isHead ? 'head' : $relationshipToHead,
+                    'is_head' => $isHead,
+                ]);
+
+                return $existing;
+            }
+
             return HouseholdMember::create([
                 'household_id' => $household->id,
                 'resident_id' => $residentId,

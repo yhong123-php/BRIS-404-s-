@@ -1,0 +1,69 @@
+/*
+ * Deliberately skips tailwindcss/preflight.css. Half this app's pages still
+ * use the plain CSS in src/index.css (buttons, inputs, tables, etc.) and
+ * rely on normal browser defaults for things preflight resets (heading
+ * size/weight, button chrome). Importing preflight here would silently
+ * regress every page this pass didn't rewrite in Tailwind. New components
+ * built against this file style everything explicitly with utility classes,
+ * so they don't need the reset either.
+ */
+@import "tailwindcss/theme.css";
+@import "tailwindcss/utilities.css";
+
+@theme {
+  /*
+   * Charcoal/lime/soft-gray rebrand. Lime is a very light, high-luminance
+   * hue even at "500" saturation — it fails as text almost everywhere, and
+   * fails as a large background too (white text on it hits 1.98:1). So it's
+   * used for small accent surfaces (buttons, badges, hover states) paired
+   * with charcoal text, never as a large panel fill or as text-on-white
+   * without its -strong variant. Charcoal takes the large-surface role
+   * lime can't safely fill (sidebar, login/register brand panel).
+   */
+  --color-primary: #84cc16;        /* lime-500: buttons, highlights */
+  --color-primary-dark: #4d7c0f;   /* lime-700: hover state, and light-mode text-safe variant */
+  --color-charcoal: #27272a;       /* sidebar/header/panel fill, light-mode text */
+  --color-charcoal-deep: #18181b;  /* deepest dark surface (dark-mode page bg) */
+  --color-bg-light: #f4f4f5;       /* soft gray: light-mode page bg, table stripe base */
+  --color-bg-dark: #18181b;
+  --color-success: #84cc16;        /* success states are also lime, per spec */
+  --color-error: #ef4444;          /* kept red rather than "lime or red" for error: reusing
+                                       lime for both success AND error would remove the one
+                                       color signal users rely on to tell the two apart */
+
+  /*
+   * Darker "-strong" siblings, for the same reason primary needed one: at
+   * these exact brand hex values, used as small text directly on a light
+   * surface, none of them clear WCAG AA's 4.5:1 text-contrast minimum —
+   * lime as plain text on white is 1.98:1, error only 3.89:1. The
+   * un-suffixed colors stay exactly as specified for backgrounds and
+   * buttons, where WCAG's lighter 3:1 non-text threshold applies instead.
+   *
+   * These do pass 4.5:1 against the dark surface (lime hits 7.42:1, error
+   * 4.53:1), so text/icons use `-strong` only in light mode and revert to
+   * the brand color in dark mode — e.g. `text-error-strong dark:text-error`
+   * — rather than switching unconditionally, which would fix light mode but
+   * under-contrast dark mode instead.
+   */
+  --color-success-strong: #4d7c0f;
+  --color-error-strong: #dc2626;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --animate-toast-in: toast-in 0.2s ease-out;
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(0.5rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+/* Manual dark mode: toggled by adding/removing `.dark` on <html>, rather
+   than following prefers-color-scheme, so ThemeToggle can control it. */
+@custom-variant dark (&:where(.dark, .dark *));

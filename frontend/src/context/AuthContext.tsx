@@ -13,28 +13,6 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
-// Client-side role→permission mirror, purely for hiding nav/buttons; the
-// backend re-checks every request, so this list drifting from Table 9.0
-// only affects UI convenience, never security (SDD §5.2).
-const ROLE_PERMISSIONS: Record<string, string[]> = {
-  captain: ['dashboard.view', 'residents.view', 'households.view', 'puroks.view'],
-  secretary: [
-    'dashboard.view', 'residents.view', 'residents.create', 'residents.edit', 'residents.merge_archive',
-    'households.view', 'households.manage', 'relationships.manage', 'puroks.view', 'puroks.manage',
-    'classifications.manage', 'a6.manage', 'users.manage', 'audit.view',
-  ],
-  staff: [
-    'dashboard.view', 'residents.view', 'residents.create', 'residents.edit',
-    'households.view', 'households.manage', 'relationships.manage', 'puroks.view',
-    'classifications.manage', 'a6.manage',
-  ],
-  treasurer: ['dashboard.view', 'residents.view'],
-  health_worker: [
-    'dashboard.view', 'residents.view', 'residents.edit_health_fields',
-    'households.view', 'puroks.view', 'classifications.manage', 'a6.manage_health_linked',
-  ],
-};
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<StaffUser | null>(() => {
     const stored = localStorage.getItem('bris_user');
@@ -84,10 +62,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const hasPermission = (permission: string) => {
-    if (!user) return false;
-    return ROLE_PERMISSIONS[user.role]?.includes(permission) ?? false;
-  };
+  // Permissions come from the backend with the user, so the interface hides
+  // exactly what the API would refuse. The backend re-checks every request,
+  // so this only affects what is shown, never security (SDD §2.3, §5.2).
+  const hasPermission = (permission: string) => user?.permissions?.includes(permission) ?? false;
 
   const value = useMemo(
     () => ({ user, loading, login, logout, hasPermission, refreshUser: fetchMe }),

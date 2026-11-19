@@ -29,6 +29,8 @@ class ClassificationTypeSeeder extends Seeder
             ['name' => 'Indigenous Person', 'requires_reference_number' => true, 'requires_document' => true, 'has_expiry' => false, 'is_age_derived' => false, 'min_age' => null],
             ['name' => '4Ps Member', 'requires_reference_number' => true, 'requires_document' => true, 'has_expiry' => false, 'is_age_derived' => false, 'min_age' => null],
             ['name' => 'Unemployed', 'requires_reference_number' => false, 'requires_document' => false, 'has_expiry' => false, 'is_age_derived' => false, 'min_age' => null],
+            // SRS §3.2.3.3: indigent families.
+            ['name' => 'Indigent', 'requires_reference_number' => false, 'requires_document' => true, 'has_expiry' => true, 'is_age_derived' => false, 'min_age' => null],
         ];
 
         foreach ($types as $type) {

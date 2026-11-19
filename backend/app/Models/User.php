@@ -37,6 +37,7 @@ class User extends Authenticatable
             'must_change_password' => 'boolean',
             'last_login_at' => 'datetime',
             'password_changed_at' => 'datetime',
+            'email_verified_at' => 'datetime',
         ];
     }
 
