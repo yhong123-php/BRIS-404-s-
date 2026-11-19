@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { formatDateTime } from '../components/ui';
 import client from '../api/client';
 import type { AssistantQueryLog } from '../api/types';
 
@@ -104,7 +105,7 @@ export default function AssistantAccessPage() {
           <tbody>
             {logs.map((log) => (
               <tr key={log.id} className="border-b border-gray-100 align-top last:border-0 dark:border-white/5">
-                <td className="whitespace-nowrap px-3 py-2">{new Date(log.created_at).toLocaleString()}</td>
+                <td className="whitespace-nowrap px-3 py-2">{formatDateTime(log.created_at)}</td>
                 <td className="px-3 py-2">{log.user ?? '—'}</td>
                 <td className="max-w-xs px-3 py-2">{log.question}</td>
                 <td className="px-3 py-2">{log.query_category?.replace(/_/g, ' ') ?? '—'}</td>

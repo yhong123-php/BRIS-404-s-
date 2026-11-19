@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, INCOME_BRACKETS, type Purok, type Resident } from '../api/types';
-import { apiError } from '../components/ui';
+import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, INCOME_BRACKETS, formatIncome, type Purok, type Resident } from '../api/types';
+import { PageSkeleton, apiError } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -59,6 +59,12 @@ export default function ResidentCreatePage() {
   const { hasPermission } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
+  // /residents/:id/edit reuses this form: same fields, saved with PATCH. Household,
+  // sectors and consent are managed on the resident's page, so they're hidden here.
+  const { id: editId } = useParams();
+  const editing = !!editId;
+  const [loaded, setLoaded] = useState(!editing);
+  const [editName, setEditName] = useState('');
   const [form, setForm] = useState(initialForm);
   const [puroks, setPuroks] = useState<Purok[]>([]);
   const [households, setHouseholds] = useState<HouseholdOption[]>([]);
@@ -73,16 +79,35 @@ export default function ResidentCreatePage() {
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (!editId) return;
+    client.get(`/admin/residents/${editId}`).then(({ data }) => {
+      const r = data.data as Resident & Record<string, unknown>;
+      const next = { ...initialForm };
+      (Object.keys(initialForm) as (keyof typeof initialForm)[]).forEach((k) => {
+        const v = r[k];
+        next[k] = v === null || v === undefined ? '' : String(v);
+      });
+      next.birth_date = next.birth_date.slice(0, 10);
+      next.residency_start_date = next.residency_start_date.slice(0, 10);
+      next.purok_id = String(r.purok_id ?? r.purok?.id ?? '');
+      setForm(next);
+      setEditName(r.full_name);
+      setLoaded(true);
+    }).catch((err) => { setError(apiError(err, 'Could not load the resident.')); setLoaded(true); });
+  }, [editId]);
+
+  useEffect(() => {
     client.get('/admin/puroks').then(({ data }) => setPuroks(data.data));
+    if (editing) return;
     if (hasPermission('classifications.manage')) client.get('/admin/classification-types').then(({ data }) => setTypes(data.data.filter((t: ClassificationType) => t.is_active !== false))).catch(() => undefined);
     if (hasPermission('g1.record')) client.get('/admin/consent-purposes').then(({ data }) => setPurposes(data.data.filter((p: ConsentPurpose) => p.is_active))).catch(() => undefined);
-  }, [hasPermission]);
+  }, [hasPermission, editing]);
 
   // Households of the chosen purok, for SDD §4.3 step 2.
   useEffect(() => {
-    if (!form.purok_id || !hasPermission('households.manage')) return;
+    if (editing || !form.purok_id || !hasPermission('households.manage')) return;
     client.get('/admin/households', { params: { purok_id: form.purok_id, per_page: 200 } }).then(({ data }) => setHouseholds(data.data)).catch(() => setHouseholds([]));
-  }, [form.purok_id, hasPermission]);
+  }, [form.purok_id, hasPermission, editing]);
 
   const age = useMemo(() => ageFrom(form.birth_date), [form.birth_date]);
   const update = (field: keyof typeof initialForm) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [field]: e.target.value }));
@@ -144,6 +169,20 @@ export default function ResidentCreatePage() {
     if (Object.values(consents).some(Boolean) && !consentForm.trim()) return setError('Enter the reference of the signed consent form.');
 
     setSubmitting(true);
+    if (editing) {
+      try {
+        const payload = Object.fromEntries(Object.entries(form).map(([k, v]) => [k, v === '' ? null : v]));
+        await client.patch(`/admin/residents/${editId}`, payload);
+        toast.success('Resident record updated.');
+        navigate(`/residents/${editId}`);
+      } catch (err) {
+        setError(apiError(err, 'Could not save the changes.'));
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } finally {
+        setSubmitting(false);
+      }
+      return;
+    }
     try {
       const payload = Object.fromEntries(Object.entries({ ...form, duplicate_check_acknowledged: acknowledged }).map(([k, v]) => [k, v === '' ? null : v]));
       const { data } = await client.post('/admin/residents', payload);
@@ -166,6 +205,8 @@ export default function ResidentCreatePage() {
     setCandidates(null);
     submit(false);
   };
+
+  if (!loaded) return <PageSkeleton cards={0} />;
 
   if (candidates) {
     return (
@@ -201,9 +242,13 @@ export default function ResidentCreatePage() {
   return (
     <div>
       <div className="page-header">
-        <h2>Register Resident</h2>
+        <h2>{editing ? `Edit resident — ${editName}` : 'Register Resident'}</h2>
       </div>
-      <p className="note">Fields marked * are required. Everything else can be added later from the resident’s page.</p>
+      <p className="note">
+        {editing
+          ? 'Every change is recorded in the audit log. Household, sector classifications and consent are updated from the resident’s page.'
+          : 'Fields marked * are required. Everything else can be added later from the resident’s page.'}
+      </p>
       <form onSubmit={handleSubmit} className="resident-form">
         {error && <div className="form-error">{error}</div>}
 
@@ -266,7 +311,7 @@ export default function ResidentCreatePage() {
               <option value="not_registered">Not registered</option>
             </select>
           </label>
-          {hasPermission('households.manage') && (
+          {!editing && hasPermission('households.manage') && (
             <>
               <label>
                 Household
@@ -306,7 +351,7 @@ export default function ResidentCreatePage() {
             Monthly household income
             <select value={form.monthly_income_bracket} onChange={update('monthly_income_bracket')}>
               <option value="">— not recorded —</option>
-              {INCOME_BRACKETS.map((b) => <option key={b} value={b}>{b === 'No income' ? b : `₱${b}`}</option>)}
+              {INCOME_BRACKETS.map((b) => <option key={b} value={b}>{formatIncome(b)}</option>)}
             </select>
           </label>
           <label>
@@ -318,7 +363,7 @@ export default function ResidentCreatePage() {
           </label>
         </Fieldset>
 
-        {types.length > 0 && (
+        {!editing && types.length > 0 && (
           <Fieldset title="5. Sector classifications" note="Tick only sectors supported by a document or ID. Senior Citizen is suggested from age but still needs the OSCA ID.">
             {types.map((t) => {
               const s = sectors[t.id];
@@ -338,7 +383,7 @@ export default function ResidentCreatePage() {
           </Fieldset>
         )}
 
-        {purposes.length > 0 && (
+        {!editing && purposes.length > 0 && (
           <Fieldset title="6. Consent (Data Privacy Act)" note="Record only what the resident opted into on the signed consent form. Registration itself does not depend on consent.">
             {purposes.map((p) => (
               <label key={p.id} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: '0.4rem' }}>
@@ -352,7 +397,7 @@ export default function ResidentCreatePage() {
           </Fieldset>
         )}
 
-        <Fieldset title="7. Remarks">
+        <Fieldset title={editing ? "5. Remarks" : "7. Remarks"}>
           <label style={{ gridColumn: '1 / -1' }}>
             Notes
             <textarea rows={3} value={form.remarks} onChange={update('remarks')} />
@@ -362,7 +407,7 @@ export default function ResidentCreatePage() {
         <div className="form-actions">
           <button type="button" onClick={() => navigate(-1)}>Cancel</button>
           <button type="submit" className="button-primary" disabled={submitting}>
-            {submitting ? 'Checking for duplicates…' : 'Register resident'}
+            {editing ? (submitting ? 'Saving…' : 'Save changes') : submitting ? 'Checking for duplicates…' : 'Register resident'}
           </button>
         </div>
       </form>

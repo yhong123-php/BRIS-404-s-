@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
+import { formatDateTime, SkeletonLines } from '../components/ui';
 import client from '../api/client';
 import type { AuditLogEntry, AssistantQueryLog } from '../api/types';
 import { useAuth } from '../context/AuthContext';
@@ -70,14 +71,14 @@ export default function AuditLogsPage() {
             <button type="submit">Filter</button>
           </form>
 
-          {loading ? <p>Loading…</p> : (
+          {loading ? <SkeletonLines lines={8} /> : (
             <div className="table-scroll">
               <table className="data-table">
                 <thead><tr><th>When</th><th>User</th><th>Action</th><th>Module</th><th>Table</th><th>Record</th><th>Changes</th></tr></thead>
                 <tbody>
                   {logs.map((log) => (
                     <tr key={log.id}>
-                      <td>{new Date(log.created_at).toLocaleString()}</td>
+                      <td>{formatDateTime(log.created_at)}</td>
                       <td>{log.user}</td>
                       <td>{log.action.replace(/_/g, ' ')}</td>
                       <td>{log.module}</td>
@@ -114,7 +115,7 @@ export default function AuditLogsPage() {
             <tbody>
               {assistantLogs.map((l) => (
                 <tr key={l.id}>
-                  <td>{new Date(l.created_at).toLocaleString()}</td>
+                  <td>{formatDateTime(l.created_at)}</td>
                   <td>{l.user ?? '—'}</td>
                   <td>{l.question}</td>
                   <td>{l.query_category?.replace(/_/g, ' ') ?? '—'}</td>

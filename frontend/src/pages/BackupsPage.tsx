@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import client from '../api/client';
-import { StatusBadge, apiError, downloadFile } from '../components/ui';
+import { apiError, downloadFile, formatDateTime, StatusBadge } from '../components/ui';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -16,6 +17,7 @@ interface BackupRow {
 
 export default function BackupsPage() {
   const toast = useToast();
+  const dialog = useDialog();
   const [rows, setRows] = useState<BackupRow[]>([]);
   const [busy, setBusy] = useState(false);
 
@@ -36,14 +38,16 @@ export default function BackupsPage() {
   };
 
   const restore = async (b: BackupRow) => {
-    const typed = window.prompt(
-      `Restore ${b.file_name}?\n\nThis REPLACES all current data with the data from ${new Date(b.started_at).toLocaleString()}.\nA pre-restore snapshot is taken first so this can be undone.\n\nType RESTORE to continue:`,
-    );
-    if (typed !== 'RESTORE') return;
+    const ok = await dialog.confirm({
+      title: 'Restore backup',
+      message: <>This <strong>replaces all current data</strong> with the data from <strong>{formatDateTime(b.started_at)}</strong> ({b.file_name}). A pre-restore snapshot is taken first, so this can be undone.</>,
+      confirmLabel: 'Restore', tone: 'danger', typeToConfirm: 'RESTORE',
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       const { data } = await client.post(`/admin/backups/${b.id}/restore`, { confirm: 'RESTORE' }, { timeout: 1_800_000 });
-      window.alert(`${data.message}\n\nYou will be signed out because the session data was restored too.`);
+      await dialog.notice({ title: 'Restore complete', message: `${data.message} You will be signed out because the session data was restored too.` });
       localStorage.removeItem('bris_token');
       window.location.href = '/login';
     } catch (err) {
@@ -63,7 +67,7 @@ export default function BackupsPage() {
         <button className="button-primary" onClick={backupNow} disabled={busy}>{busy ? 'Working…' : 'Back up now'}</button>
       </div>
       <div className={`callout ${lastSuccess ? '' : 'callout-warn'}`}>
-        {lastSuccess ? <>Last successful backup: <strong>{new Date(lastSuccess.started_at).toLocaleString()}</strong>.</> : <>No successful backup yet.</>}{' '}
+        {lastSuccess ? <>Last successful backup: <strong>{formatDateTime(lastSuccess.started_at)}</strong>.</> : <>No successful backup yet.</>}{' '}
         Scheduled backups run nightly at 1:00 AM (keep the Laravel scheduler running). Archives are compressed, encrypted, and checksummed.
         Retention: daily for 14 days, weekly for 8 weeks, monthly for 12 months. Copy downloaded archives to an off-site storage device.
       </div>
@@ -72,7 +76,7 @@ export default function BackupsPage() {
         <tbody>
           {rows.map((b) => (
             <tr key={b.id}>
-              <td>{new Date(b.started_at).toLocaleString()}</td>
+              <td>{formatDateTime(b.started_at)}</td>
               <td>{b.type.replace('_', ' ')}</td>
               <td>{b.file_name}<div className="note" title={b.checksum ?? ''}>{b.checksum ? `sha256 ${b.checksum.slice(0, 12)}…` : ''}</div></td>
               <td>{b.file_size ? `${(b.file_size / 1024 / 1024).toFixed(2)} MB` : '—'}</td>

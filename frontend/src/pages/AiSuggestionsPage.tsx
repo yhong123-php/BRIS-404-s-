@@ -4,6 +4,7 @@ import client from '../api/client';
 import { EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
 import { StatusBadge, apiError, formatDate } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -35,6 +36,7 @@ function describe(s: Suggestion): string {
 export function AiResidentAnalysis() {
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [rows, setRows] = useState<Suggestion[]>([]);
   const [status, setStatus] = useState('pending');
   const [running, setRunning] = useState(false);
@@ -60,12 +62,18 @@ export function AiResidentAnalysis() {
   const decide = async (s: Suggestion, confirm: boolean) => {
     const extra: Record<string, string> = {};
     if (confirm && s.suggestion_type === 'eligibility') {
-      const ref = window.prompt('Reference number (e.g. OSCA ID) — required to record the classification:');
-      if (!ref) return;
-      const doc = window.prompt('Supporting document (file name or description):');
-      if (!doc) return;
-      extra.reference_number = ref;
-      extra.document_path = doc;
+      const v = await dialog.form({
+        title: `Confirm: ${s.payload.classification}`,
+        description: <>{s.resident_name} — {s.rationale}</>,
+        fields: [
+          { name: 'reference_number', label: 'Reference number', required: true, placeholder: 'e.g. OSCA ID number' },
+          { name: 'document_path', label: 'Supporting document', required: true, placeholder: 'Scanned file name or document reference' },
+        ],
+        submitLabel: 'Confirm and record',
+      });
+      if (!v) return;
+      extra.reference_number = v.reference_number;
+      extra.document_path = v.document_path;
     }
     try {
       await client.post(`/admin/ai-suggestions/${s.id}/decide`, { confirm, ...extra });

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { StatusBadge } from '../components/ui';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import type { Household, PaginatedResponse } from '../api/types';
@@ -39,7 +40,7 @@ export default function HouseholdsListPage() {
               </td>
               <td>{h.size}</td>
               <td>{h.members?.find((m) => m.is_head)?.resident_name ?? '—'}</td>
-              <td>{h.status}</td>
+              <td><StatusBadge status={h.status ?? 'active'} /></td>
             </tr>
           ))}
           {households.length === 0 && (

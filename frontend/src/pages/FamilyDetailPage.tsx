@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { PageSkeleton, humanize } from '../components/ui';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Family } from '../api/types';
@@ -22,7 +23,7 @@ export default function FamilyDetailPage() {
   }, [id]);
 
   if (error) return <div className="form-error">{error}</div>;
-  if (!family) return <p>Loading…</p>;
+  if (!family) return <PageSkeleton />;
 
   return (
     <div>
@@ -54,7 +55,7 @@ export default function FamilyDetailPage() {
             {family.relationships?.map((r) => (
               <tr key={r.id}>
                 <td>{r.resident_name}</td>
-                <td>{r.relationship_type}</td>
+                <td>{humanize(r.relationship_type)}</td>
                 <td>{r.related_resident_name}</td>
                 <td>{r.start_date ?? '—'}</td>
                 <td>{r.end_date ?? '—'}</td>

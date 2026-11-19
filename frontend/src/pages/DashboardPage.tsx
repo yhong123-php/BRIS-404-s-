@@ -1,4 +1,5 @@
 import { motion, type Variants } from 'framer-motion';
+import { BarChart, formatDate, formatDateTime } from '../components/ui';
 import { useEffect, useState, type ComponentType, type SVGProps } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import client from '../api/client';
@@ -55,7 +56,7 @@ function timeAgo(dateString: string): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return new Date(dateString).toLocaleDateString();
+  return formatDate(dateString);
 }
 
 const activityListVariants: Variants = {
@@ -93,6 +94,7 @@ const cardVariants: Variants = {
 
 function DashboardOverview() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [puroks, setPuroks] = useState<{ id: number; name: string; residents_count: number; households_count: number }[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -100,6 +102,10 @@ function DashboardOverview() {
       .get('/admin/dashboard/summary')
       .then(({ data }) => setSummary(data.data))
       .catch((err) => setError(err?.response?.data?.message ?? 'Could not load dashboard.'));
+    client
+      .get('/admin/puroks')
+      .then(({ data }) => setPuroks(data.data))
+      .catch(() => undefined);
   }, []);
 
   const cards: StatCard[] = summary
@@ -223,6 +229,13 @@ function DashboardOverview() {
         ))}
       </motion.div>
 
+      {puroks.length > 0 && (
+        <section className="detail-section mt-6">
+          <div className="section-head"><h3>Residents per purok</h3><Link to="/residents?tab=puroks" className="note">View puroks →</Link></div>
+          <BarChart data={puroks.map((p) => ({ label: p.name, value: p.residents_count }))} unit=" residents" />
+        </section>
+      )}
+
       {summary?.recent_activity && (
         <div className="mt-6 rounded-2xl border border-gray-200 bg-bg-light p-5 shadow-sm dark:border-white/10 dark:bg-charcoal">
           <div className="flex items-center justify-between">
@@ -239,7 +252,7 @@ function DashboardOverview() {
               variants={activityListVariants}
               initial="hidden"
               animate="visible"
-              className="mt-3 divide-y divide-gray-200 dark:divide-white/10"
+              className="activity-list mt-3 divide-y divide-gray-200 dark:divide-white/10"
             >
               {summary.recent_activity.map((entry, i) => {
                 const { icon: ActivityIcon, classes } = activityMeta(entry.action);
@@ -267,7 +280,7 @@ function DashboardOverview() {
                         </span>
                       </p>
                     </div>
-                    <span className="shrink-0 text-xs text-gray-400" title={new Date(entry.created_at).toLocaleString()}>
+                    <span className="shrink-0 text-xs text-gray-400" title={formatDateTime(entry.created_at)}>
                       {timeAgo(entry.created_at)}
                     </span>
                   </div>

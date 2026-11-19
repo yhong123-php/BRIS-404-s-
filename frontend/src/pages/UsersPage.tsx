@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import client from '../api/client';
-import { StatusBadge, apiError } from '../components/ui';
+import { apiError, formatDateTime, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -20,6 +21,7 @@ const ROLE_LABEL: Record<string, string> = { captain: 'Barangay Captain (System 
 export default function UsersPage() {
   const { user: me } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [tab, setTab] = useState<'accounts' | 'roles'>('accounts');
   const [users, setUsers] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleRow[]>([]);
@@ -33,7 +35,11 @@ export default function UsersPage() {
   useEffect(() => { load(); }, [load]);
 
   const showPassword = (name: string, password: string) =>
-    window.alert(`Temporary password for ${name}:\n\n${password}\n\nGive it to the user in person. They must change it at first login.`);
+    dialog.notice({
+      title: `Temporary password for ${name}`,
+      message: 'Give it to the user in person. They must change it at first login. It is not shown again.',
+      copyText: password,
+    });
 
   const create = async (e: FormEvent) => {
     e.preventDefault();
@@ -93,12 +99,12 @@ export default function UsersPage() {
                     </select>
                   </td>
                   <td><StatusBadge status={u.is_active ? 'active' : 'deactivated'} />{u.must_change_password && <div className="note">must change password</div>}</td>
-                  <td>{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : 'never'}</td>
+                  <td>{u.last_login_at ? formatDateTime(u.last_login_at) : 'never'}</td>
                   <td>
                     {u.id !== me?.id && (
                       <div className="row-actions">
                         <button onClick={() => update(u, { is_active: !u.is_active }, u.is_active ? 'Account deactivated.' : 'Account activated.')}>{u.is_active ? 'Deactivate' : 'Activate'}</button>
-                        <button onClick={async () => { if (!window.confirm(`Reset the password of ${u.full_name}?`)) return; try { const { data } = await client.post(`/admin/users/${u.id}/reset-password`); showPassword(u.full_name, data.data.temporary_password); load(); } catch (err) { toast.error(apiError(err)); } }}>Reset password</button>
+                        <button onClick={async () => { if (!(await dialog.confirm({ title: 'Reset password', message: <>Reset the password of <strong>{u.full_name}</strong>? They will be signed out and must use the new temporary password.</>, confirmLabel: 'Reset password', tone: 'danger' }))) return; try { const { data } = await client.post(`/admin/users/${u.id}/reset-password`); showPassword(u.full_name, data.data.temporary_password); load(); } catch (err) { toast.error(apiError(err)); } }}>Reset password</button>
                       </div>
                     )}
                   </td>

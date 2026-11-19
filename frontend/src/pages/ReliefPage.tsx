@@ -1,8 +1,9 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { DocumentHeader, StatusBadge, apiError, formatDate } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, formatDateTime, humanize, StatusBadge, PageSkeleton } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -180,6 +181,7 @@ export function ReliefDetailPage() {
   const { id } = useParams();
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [data, setData] = useState<DetailData | null>(null);
   const [search, setSearch] = useState('');
   const [purokFilter, setPurokFilter] = useState('');
@@ -198,13 +200,89 @@ export function ReliefDetailPage() {
     }
   };
 
+
+  const reasonForm = (title: string, label: string, submitLabel: string) =>
+    dialog.form({ title, fields: [{ name: 'reason', label, type: 'textarea', required: true }], submitLabel });
+
+  const addHousehold = async () => {
+    const res = await client.get('/admin/households', { params: { per_page: 500 } }).catch(() => null);
+    const listed = new Set(data?.beneficiaries.map((b) => b.household_id));
+    const options = ((res?.data.data ?? []) as { id: number; household_number: string; purok?: { name: string } | null }[])
+      .filter((h) => !listed.has(h.id))
+      .map((h) => ({ value: String(h.id), label: `${h.household_number}${h.purok?.name ? ` — ${h.purok.name}` : ''}` }));
+    if (options.length === 0) return dialog.notice({ title: 'Add household', message: 'Every household is already on this list.' });
+    const v = await dialog.form({
+      title: 'Add a household manually',
+      description: 'For a household the eligibility rule did not list but that should receive relief.',
+      fields: [
+        { name: 'household_id', label: 'Household', type: 'select', required: true, options },
+        { name: 'reason', label: 'Reason for including it', type: 'textarea', required: true },
+      ],
+      submitLabel: 'Add household',
+    });
+    if (v) call(() => client.post(`/admin/relief/${id}/households`, { household_id: Number(v.household_id), reason: v.reason }), 'Household added.');
+  };
+
+  const approve = async () => {
+    const ok = await dialog.confirm({
+      title: 'Approve relief list',
+      message: 'Approve this list? It will be frozen and claims opened. Later changes to the registry will not change it.',
+      confirmLabel: 'Approve and open',
+    });
+    if (ok) call(() => client.post(`/admin/relief/${id}/decide`, { approve: true }), 'List approved — distribution open.');
+  };
+
+  const returnToSecretary = async () => {
+    const v = await reasonForm('Return list to the Secretary', 'What needs to change?', 'Return list');
+    if (v) call(() => client.post(`/admin/relief/${id}/decide`, { approve: false, reason: v.reason }), 'List returned to draft.');
+  };
+
+  const closeDistribution = async () => {
+    const ok = await dialog.confirm({
+      title: 'Close distribution',
+      message: 'Close this distribution? Unclaimed entitlements will be reported and the summary locked against further edits.',
+      confirmLabel: 'Close distribution', tone: 'danger',
+    });
+    if (ok) call(() => client.post(`/admin/relief/${id}/close`), 'Distribution closed.');
+  };
+
+  const toggleExclusion = async (b: Beneficiary) => {
+    const v = await reasonForm(
+      b.is_excluded ? `Include household ${b.household_number} again` : `Exclude household ${b.household_number}`,
+      b.is_excluded ? 'Reason for including it again' : 'Reason for excluding it',
+      b.is_excluded ? 'Include' : 'Exclude',
+    );
+    if (v) call(() => client.post(`/admin/relief-beneficiaries/${b.id}/exclude`, { is_excluded: !b.is_excluded, reason: v.reason }), 'Updated.');
+  };
+
+  const recordClaim = async (b: Beneficiary) => {
+    const v = await dialog.form({
+      title: `Record claim — household ${b.household_number}`,
+      description: `${b.entitlement_quantity} × ${data?.distribution.goods_description ?? 'goods'}${b.purok ? ` · ${b.purok}` : ''}`,
+      fields: [
+        { name: 'claimant_name', label: 'Received by', required: true, defaultValue: b.representative ?? '' },
+        { name: 'relationship_to_head', label: 'Relationship to the household head', type: 'select', required: true, defaultValue: 'head', options: [
+          { value: 'head', label: 'Household head' }, { value: 'spouse', label: 'Spouse' }, { value: 'son', label: 'Son' }, { value: 'daughter', label: 'Daughter' },
+          { value: 'parent', label: 'Parent' }, { value: 'sibling', label: 'Sibling' }, { value: 'relative', label: 'Other relative' }, { value: 'authorized representative', label: 'Authorized representative' },
+        ] },
+      ],
+      submitLabel: 'Record claim',
+    });
+    if (v) call(() => client.post(`/admin/relief-beneficiaries/${b.id}/claim`, v), 'Claim recorded.');
+  };
+
+  const reverseClaim = async (claimId: number) => {
+    const v = await reasonForm('Reverse claim', 'Reason for reversing this claim', 'Reverse claim');
+    if (v) call(() => client.post(`/admin/relief-claims/${claimId}/reverse`, { reason: v.reason }), 'Claim reversed.');
+  };
+
   /** Prints the release list of one purok (or all puroks), with a signature column. */
   const printPurok = (purok: string) => {
     setPrinting(purok);
     setTimeout(() => { window.print(); setPrinting(null); }, 50);
   };
 
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <PageSkeleton />;
   const d = data.distribution;
   const draft = d.status === 'draft';
   const open = d.status === 'open';
@@ -252,18 +330,18 @@ export function ReliefDetailPage() {
         <div className="row-actions">
           {draft && hasPermission('f3.prepare') && <button onClick={() => call(() => client.post(`/admin/relief/${id}/generate`), 'List refreshed from the latest records.')}>Refresh list</button>}
           {draft && hasPermission('relief.create') && (
-            <button onClick={() => { const hh = window.prompt('Household ID to add manually:'); const reason = hh && window.prompt('Reason for manual inclusion:'); if (hh && reason) call(() => client.post(`/admin/relief/${id}/households`, { household_id: Number(hh), reason }), 'Household added.'); }}>
+            <button onClick={addHousehold}>
               Add household manually
             </button>
           )}
           {draft && hasPermission('f3.prepare') && <button className="button-primary" onClick={() => call(() => client.post(`/admin/relief/${id}/submit`), 'List submitted for the Captain’s approval.')}>Submit for approval</button>}
           {d.status === 'pending_approval' && hasPermission('f3.approve') && (
             <>
-              <button className="button-primary" onClick={() => window.confirm('Approve this list? It will be frozen and claims opened.') && call(() => client.post(`/admin/relief/${id}/decide`, { approve: true }), 'List approved — distribution open.')}>Approve list</button>
-              <button onClick={() => { const reason = window.prompt('Reason for returning the list to the Secretary:'); if (reason) call(() => client.post(`/admin/relief/${id}/decide`, { approve: false, reason }), 'List returned to draft.'); }}>Return to Secretary</button>
+              <button className="button-primary" onClick={approve}>Approve list</button>
+              <button onClick={returnToSecretary}>Return to Secretary</button>
             </>
           )}
-          {open && hasPermission('f3.approve') && <button onClick={() => window.confirm('Close this distribution? Unclaimed entitlements will be reported and the summary locked.') && call(() => client.post(`/admin/relief/${id}/close`), 'Distribution closed.')}>Close distribution</button>}
+          {open && hasPermission('f3.approve') && <button onClick={closeDistribution}>Close distribution</button>}
           {(open || d.status === 'closed' || d.status === 'pending_approval') && <button onClick={() => printPurok('all')}>Print release lists (all puroks)</button>}
         </div>
       </div>
@@ -340,22 +418,22 @@ export function ReliefDetailPage() {
                       <td>{b.is_excluded ? <>Excluded<div className="note">{b.override_reason}</div></> : b.within_allocation ? 'Served' : 'Waitlist'}</td>
                       <td>
                         <StatusBadge status={b.status} />
-                        {claim && <div className="note">{claim.claimant_name}{claim.relationship_to_head ? ` (${claim.relationship_to_head})` : ''} · {new Date(claim.claimed_at).toLocaleString()} · by {claim.released_by}</div>}
+                        {claim && <div className="note">{claim.claimant_name}{claim.relationship_to_head ? ` (${humanize(claim.relationship_to_head)})` : ''} · {formatDateTime(claim.claimed_at)} · by {claim.released_by}</div>}
                       </td>
                       <td>
                         <div className="row-actions">
                           {draft && hasPermission('relief.create') && (
-                            <button onClick={() => { const reason = window.prompt(b.is_excluded ? 'Reason for including again:' : 'Reason for excluding:'); if (reason) call(() => client.post(`/admin/relief-beneficiaries/${b.id}/exclude`, { is_excluded: !b.is_excluded, reason }), 'Updated.'); }}>
+                            <button onClick={() => toggleExclusion(b)}>
                               {b.is_excluded ? 'Include' : 'Exclude'}
                             </button>
                           )}
                           {open && !claim && b.within_allocation && !b.is_excluded && hasPermission('relief.record_claim') && (
-                            <button onClick={() => { const claimant_name = window.prompt('Name of the person receiving the goods:', b.representative ?? ''); if (!claimant_name) return; const relationship_to_head = window.prompt('Relationship to the household head:', 'head') ?? undefined; call(() => client.post(`/admin/relief-beneficiaries/${b.id}/claim`, { claimant_name, relationship_to_head }), 'Claim recorded.'); }}>
+                            <button onClick={() => recordClaim(b)}>
                               Record claim
                             </button>
                           )}
                           {open && claim && hasPermission('relief.reverse_claim') && (
-                            <button onClick={() => { const reason = window.prompt('Reason for reversing this claim:'); if (reason) call(() => client.post(`/admin/relief-claims/${claim.id}/reverse`, { reason }), 'Claim reversed.'); }}>Reverse claim</button>
+                            <button onClick={() => reverseClaim(claim.id)}>Reverse claim</button>
                           )}
                         </div>
                       </td>

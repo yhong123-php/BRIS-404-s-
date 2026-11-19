@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import { PageSkeleton } from '../components/ui';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
@@ -17,7 +18,7 @@ function SkillsTab() {
   useEffect(() => {
     client.get('/admin/reports/skills').then(({ data }) => setReport(data.data));
   }, []);
-  if (!report) return <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>;
+  if (!report) return <PageSkeleton cards={4} />;
 
   return (
     <div>
@@ -72,7 +73,7 @@ function EmploymentTab() {
   useEffect(() => {
     client.get('/admin/reports/employment').then(({ data }) => setReport(data.data));
   }, []);
-  if (!report) return <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>;
+  if (!report) return <PageSkeleton cards={4} />;
 
   return (
     <div>
@@ -145,7 +146,7 @@ function BeneficiariesTab() {
 
   useEffect(() => load(), []);
 
-  if (!report) return <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>;
+  if (!report) return <PageSkeleton cards={4} />;
 
   return (
     <div>
@@ -220,7 +221,7 @@ function AchievementsTab() {
   useEffect(() => {
     client.get('/admin/reports/achievements').then(({ data }) => setReport(data.data));
   }, []);
-  if (!report) return <p className="text-sm text-gray-500 dark:text-gray-400">Loading…</p>;
+  if (!report) return <PageSkeleton cards={4} />;
 
   return (
     <div>

@@ -1,4 +1,4 @@
-import { DocumentHeader, formatDate } from '../components/ui';
+import { DocumentHeader, formatDate, formatDateTime } from '../components/ui';
 import { EDUCATION_LEVELS, EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
 
 /** E1 — Printable copy of a resident's record (SRS §3.2.1.10, SDD §4.14). */
@@ -47,7 +47,7 @@ export default function RecordCopyPrintPage() {
           <tbody>{rows.map(([k, v]) => <tr key={k}><th style={{ width: '35%', textAlign: 'left' }}>{k}</th><td style={{ textTransform: 'capitalize' }}>{v}</td></tr>)}</tbody>
         </table>
         <div className="doc-meta">
-          <div>Issued {new Date(data.copy.issued_at).toLocaleString()} to {data.copy.requested_by_name} ({data.copy.relationship_to_resident || 'self'}) upon presentation of {data.copy.id_presented}, for: {data.copy.purpose}.</div>
+          <div>Issued {formatDateTime(data.copy.issued_at)} to {data.copy.requested_by_name} ({data.copy.relationship_to_resident || 'self'}) upon presentation of {data.copy.id_presented}, for: {data.copy.purpose}.</div>
           <div>Issued by: {data.copy.issuer?.full_name ?? '—'} · Copy no. {data.copy.id}</div>
           <div>This copy contains personal information protected under Republic Act No. 10173.</div>
         </div>

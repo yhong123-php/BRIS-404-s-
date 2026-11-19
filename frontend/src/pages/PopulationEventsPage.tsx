@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { ResidentPicker, apiError, formatDate, type ResidentOption } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -28,6 +29,7 @@ const EFFECTS: Record<EventType, string> = {
 export default function PopulationEventsPage() {
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [rows, setRows] = useState<EventRow[]>([]);
   const [filter, setFilter] = useState('');
   const [type, setType] = useState<EventType | null>(null);
@@ -48,7 +50,7 @@ export default function PopulationEventsPage() {
         )}
       </div>
 
-      {type && <EventForm type={type} onSaved={(warning) => { setType(null); load(); toast.success('Event recorded and the registry updated.'); if (warning) window.alert(warning); }} />}
+      {type && <EventForm type={type} onSaved={(warning) => { setType(null); load(); toast.success('Event recorded and the registry updated.'); if (warning) dialog.notice({ title: 'Action needed', message: warning, tone: 'warning' }); }} />}
 
       <div className="search-bar">
         <select value={filter} onChange={(e) => setFilter(e.target.value)}>
@@ -126,7 +128,7 @@ function EventForm({ type, onSaved }: { type: EventType; onSaved: (warning: stri
         {type === 'transfer_in' && !resident && (
           <>
             <label>Birth date *<input type="date" required value={f.birth_date ?? ''} onChange={set('birth_date')} /></label>
-            <label>Civil status *<select value={f.civil_status} onChange={set('civil_status')}>{['single', 'married', 'widowed', 'separated', 'divorced', 'annulled'].map((c) => <option key={c}>{c}</option>)}</select></label>
+            <label>Civil status *<select value={f.civil_status} onChange={set('civil_status')}>{['single', 'married', 'widowed', 'separated', 'divorced', 'annulled'].map((c) => <option key={c} value={c}>{c[0].toUpperCase() + c.slice(1)}</option>)}</select></label>
           </>
         )}
         {type === 'birth' && (

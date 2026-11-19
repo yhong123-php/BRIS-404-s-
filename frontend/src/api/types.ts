@@ -212,6 +212,9 @@ export const EMPLOYMENT_STATUS_LABELS: Record<EmploymentStatus, string> = {
 };
 
 /** Monthly household income brackets — must match Resident::INCOME_BRACKETS on the backend. */
+/** Shows a bracket with the peso sign before the amount: "Below ₱5,000", "₱5,000–10,000". */
+export const formatIncome = (bracket: string) => bracket.replace(/(\d)/, '₱$1');
+
 export const INCOME_BRACKETS = ['No income', 'Below 5,000', '5,000–10,000', '10,000–20,000', '20,000–40,000', 'Above 40,000'];
 
 /** Highest educational attainment — must match Resident::EDUCATION_LEVELS on the backend. */

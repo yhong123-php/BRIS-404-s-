@@ -2,6 +2,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
+import { DialogProvider } from './context/DialogContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { ToastProvider } from './context/ToastContext';
 import AiSuggestionsPage from './pages/AiSuggestionsPage';
@@ -34,6 +35,7 @@ export default function App() {
     <BrowserRouter>
       <ThemeProvider>
         <ToastProvider>
+          <DialogProvider>
           <AuthProvider>
             <Routes>
               <Route path="/login" element={<LoginPage />} />
@@ -51,6 +53,7 @@ export default function App() {
                 <Route path="/residents" element={<RegistryPage />} />
                 <Route path="/residents/new" element={<ResidentCreatePage />} />
                 <Route path="/residents/:id" element={<ResidentDetailPage />} />
+                <Route path="/residents/:id/edit" element={<ResidentCreatePage />} />
                 <Route path="/households" element={<RegistryRedirect tab="households" />} />
                 <Route path="/households/new" element={<HouseholdCreatePage />} />
                 <Route path="/households/:id" element={<HouseholdDetailPage />} />
@@ -75,6 +78,7 @@ export default function App() {
               </Route>
             </Routes>
           </AuthProvider>
+          </DialogProvider>
         </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>

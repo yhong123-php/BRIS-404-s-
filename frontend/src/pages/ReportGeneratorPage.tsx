@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, downloadFile } from '../components/ui';
+import { apiError, downloadFile, SkeletonLines } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -43,7 +43,7 @@ export function ReportGenerator() {
 
   const exportCsv = () => downloadFile(`/admin/report-engine/${key}`, { ...cleanParams(), format: 'csv' }, `bris-${key}.csv`).catch((err) => toast.error(apiError(err)));
 
-  if (!catalog) return <p>Loading…</p>;
+  if (!catalog) return <SkeletonLines lines={8} />;
   const has = (p: string) => def?.parameters.includes(p);
 
   return (

@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
-import { StatusBadge, apiError, formatDate } from '../components/ui';
+import { apiError, formatDate, humanize, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -27,6 +28,7 @@ const TYPE_HELP: Record<string, string> = {
 export default function PrivacyPage() {
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [purposes, setPurposes] = useState<Purpose[]>([]);
   const [requests, setRequests] = useState<Dsr[]>([]);
   const [newPurpose, setNewPurpose] = useState({ code: '', name: '', description: '' });
@@ -61,15 +63,15 @@ export default function PrivacyPage() {
             <tr key={r.id}>
               <td>{formatDate(r.created_at)}<div className="note">by {r.receiver?.full_name ?? '—'}</div></td>
               <td><Link to={`/residents/${r.resident_id}`}>{r.resident_name}</Link></td>
-              <td>{r.request_type}<div className="note">{TYPE_HELP[r.request_type]}</div></td>
+              <td>{humanize(r.request_type)}<div className="note">{TYPE_HELP[r.request_type]}</div></td>
               <td>{r.details}</td>
               <td><StatusBadge status={r.status} />{r.decider && <div className="note">{r.decider.full_name}{r.decision_reason ? `: ${r.decision_reason}` : ''}</div>}</td>
               <td>
                 <div className="row-actions">
                   {canDecide && r.status === 'received' && (
                     <>
-                      <button onClick={() => { const reason = window.prompt('Decision note (optional):'); if (reason !== null) run(() => client.post(`/admin/data-subject-requests/${r.id}/decide`, { approve: true, reason }), 'Request approved.'); }}>Approve</button>
-                      <button onClick={() => { const reason = window.prompt('Reason for rejecting:'); if (reason) run(() => client.post(`/admin/data-subject-requests/${r.id}/decide`, { approve: false, reason }), 'Request rejected.'); }}>Reject</button>
+                      <button onClick={async () => { const v = await dialog.form({ title: `Approve ${r.request_type} request`, description: TYPE_HELP[r.request_type], fields: [{ name: 'reason', label: 'Decision note', type: 'textarea' }], submitLabel: 'Approve' }); if (v) run(() => client.post(`/admin/data-subject-requests/${r.id}/decide`, { approve: true, reason: v.reason || null }), 'Request approved.'); }}>Approve</button>
+                      <button onClick={async () => { const v = await dialog.form({ title: `Reject ${r.request_type} request`, fields: [{ name: 'reason', label: 'Reason for rejecting', type: 'textarea', required: true, help: 'The Secretary explains this reason to the resident.' }], submitLabel: 'Reject', tone: 'danger' }); if (v) run(() => client.post(`/admin/data-subject-requests/${r.id}/decide`, { approve: false, reason: v.reason }), 'Request rejected.'); }}>Reject</button>
                     </>
                   )}
                   {canDecide && r.status === 'approved' && <button onClick={() => run(() => client.post(`/admin/data-subject-requests/${r.id}/complete`), 'Marked completed.')}>Mark completed</button>}

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, formatDate } from '../components/ui';
+import { apiError, formatDate, formatDateTime, PageSkeleton } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -40,7 +40,7 @@ export function PredictiveDashboard() {
     }
   };
 
-  if (!data) return <p>Loading…</p>;
+  if (!data) return <PageSkeleton cards={4} />;
   const names = Object.keys(data.puroks).sort((a, b) => (a === 'Whole barangay' ? -1 : b === 'Whole barangay' ? 1 : a.localeCompare(b, undefined, { numeric: true })));
   const months = Array.from(new Set(data.monthly_events.map((e) => e.month)));
   const count = (month: string, type: string) => data.monthly_events.find((e) => e.month === month && e.event_type === type)?.c ?? 0;
@@ -56,7 +56,7 @@ export function PredictiveDashboard() {
       <div className="callout callout-warn">
         <strong>PROJECTIONS — not recorded figures.</strong>{' '}
         {data.generated_at ? (
-          <>Period projected: {data.period}. Based on records from {formatDate(data.input_from)} to {formatDate(data.input_to)}. Method: {data.method}. Generated {new Date(data.generated_at).toLocaleString()}. Recomputed nightly.</>
+          <>Period projected: {data.period}. Based on records from {formatDate(data.input_from)} to {formatDate(data.input_to)}. Method: {data.method}. Generated {formatDateTime(data.generated_at)}. Recomputed nightly.</>
         ) : (
           <>No projections yet — click “Recompute projections”.</>
         )}

@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'reac
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
-import { DocumentHeader, StatusBadge, apiError, formatDate } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, humanize, StatusBadge } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -154,7 +154,7 @@ export default function OpportunitiesPage() {
           {items.map((o) => (
             <tr key={o.id} onClick={() => open(o.id)} style={{ cursor: 'pointer' }}>
               <td><strong>{o.title}</strong>{o.provider ? <div className="note">{o.provider}</div> : null}</td>
-              <td>{o.type}</td>
+              <td>{humanize(o.type)}</td>
               <td>{o.required_skill_names.join(', ')}</td>
               <td>{o.slots}</td>
               <td>{formatDate(o.closing_date)}</td>

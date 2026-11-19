@@ -2,8 +2,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
-import { Section, StatusBadge, apiError, formatDate } from './ui';
+import { apiError, formatDate, formatDateTime, Section, StatusBadge } from './ui';
 
 /**
  * Resident-page panels for the services residents request in person through
@@ -19,6 +20,7 @@ interface ConsentRow {
 export default function ResidentServicePanels({ residentId }: { residentId: number }) {
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
   const [consents, setConsents] = useState<ConsentRow[]>([]);
   const [copies, setCopies] = useState<{ id: number; requested_by_name: string; purpose: string; id_presented: string; issued_at: string; issuer: { full_name: string } | null }[]>([]);
 
@@ -33,37 +35,70 @@ export default function ResidentServicePanels({ residentId }: { residentId: numb
     try { await fn(); toast.success(ok); load(); } catch (err) { toast.error(apiError(err)); }
   };
 
-  const recordConsent = (row: ConsentRow, status: 'granted' | 'revoked') => {
-    const form_path = status === 'granted' ? window.prompt('Signed consent form (scanned file name or reference):') : null;
-    if (status === 'granted' && !form_path) return;
-    run(() => client.post(`/admin/residents/${residentId}/consents`, { consent_purpose_id: row.purpose.id, status, form_path }), status === 'granted' ? 'Consent recorded.' : 'Consent revoked — takes effect immediately.');
+  const recordConsent = async (row: ConsentRow, status: 'granted' | 'revoked') => {
+    if (status === 'granted') {
+      const v = await dialog.form({
+        title: 'Record opt-in',
+        description: <>The resident consents to: <strong>{row.purpose.name}</strong>{row.purpose.description ? ` — ${row.purpose.description}` : ''}</>,
+        fields: [{ name: 'form_path', label: 'Signed consent form', required: true, placeholder: 'Scanned file name or form number', help: 'Record only what the resident ticked on the signed form.' }],
+        submitLabel: 'Record opt-in',
+      });
+      if (v) run(() => client.post(`/admin/residents/${residentId}/consents`, { consent_purpose_id: row.purpose.id, status, form_path: v.form_path }), 'Consent recorded.');
+      return;
+    }
+    const ok = await dialog.confirm({
+      title: 'Record opt-out',
+      message: <>Record that the resident withdraws consent for <strong>{row.purpose.name}</strong>? This takes effect immediately.</>,
+      confirmLabel: 'Record opt-out', tone: 'danger',
+    });
+    if (ok) run(() => client.post(`/admin/residents/${residentId}/consents`, { consent_purpose_id: row.purpose.id, status, form_path: null }), 'Consent revoked — takes effect immediately.');
   };
 
   const issueCopy = async () => {
-    const requested_by_name = window.prompt('Name of the person requesting the copy (resident or authorized representative):');
-    if (!requested_by_name) return;
-    const relationship_to_resident = window.prompt('Relationship to the resident (e.g. self, spouse, authorized representative):', 'self') ?? '';
-    const id_presented = window.prompt('Valid ID presented (type and number). A representative must also present an authorization letter:');
-    if (!id_presented) return;
-    const purpose = window.prompt('Purpose of the request:');
-    if (!purpose) return;
+    const v = await dialog.form({
+      title: 'Issue a copy of this record',
+      description: 'Check the requester’s valid ID. A representative must also present an authorization letter from the resident.',
+      fields: [
+        { name: 'requested_by_name', label: 'Requested by', required: true, placeholder: 'Full name of the resident or representative' },
+        { name: 'relationship_to_resident', label: 'Relationship to the resident', type: 'select', required: true, defaultValue: 'self', options: [
+          { value: 'self', label: 'Self (the resident)' }, { value: 'spouse', label: 'Spouse' }, { value: 'parent', label: 'Parent' },
+          { value: 'child', label: 'Child' }, { value: 'sibling', label: 'Sibling' }, { value: 'authorized representative', label: 'Authorized representative' },
+        ] },
+        { name: 'id_presented', label: 'Valid ID presented', required: true, placeholder: 'e.g. PhilSys ID 1234-5678-9012' },
+        { name: 'purpose', label: 'Purpose', required: true, placeholder: 'e.g. Bank requirement, school enrollment' },
+      ],
+      submitLabel: 'Issue and print',
+    });
+    if (!v) return;
     try {
-      const { data } = await client.post(`/admin/residents/${residentId}/record-copies`, { requested_by_name, relationship_to_resident, id_presented, purpose });
+      const { data } = await client.post(`/admin/residents/${residentId}/record-copies`, v);
       sessionStorage.setItem('bris_record_copy', JSON.stringify(data.data));
-      window.open('/record-copy/print', '_blank');
+      const win = window.open('/record-copy/print', '_blank');
+      if (!win) {
+        await dialog.notice({ title: 'Copy recorded', message: <>The browser blocked the print window. <a href="/record-copy/print" target="_blank" rel="noreferrer">Open the printable copy</a>.</> });
+      }
       load();
     } catch (err) {
       toast.error(apiError(err));
     }
   };
 
-  const receiveDsr = () => {
-    const request_type = window.prompt('Type of request: access, correction, objection, or erasure')?.trim().toLowerCase();
-    if (!request_type) return;
-    if (!['access', 'correction', 'objection', 'erasure'].includes(request_type)) return toast.error('Type must be access, correction, objection, or erasure.');
-    const details = window.prompt('Details of the request, as stated by the resident:');
-    if (!details) return;
-    run(() => client.post(`/admin/residents/${residentId}/data-subject-requests`, { request_type, details }), 'Request received and sent to the Captain for decision.');
+  const receiveDsr = async () => {
+    const v = await dialog.form({
+      title: 'Receive a data-subject request',
+      description: 'A request under the Data Privacy Act (RA 10173). The Barangay Captain decides it on the Data Privacy page.',
+      fields: [
+        { name: 'request_type', label: 'Type of request', type: 'select', required: true, options: [
+          { value: 'access', label: 'Access — a copy of their personal data' },
+          { value: 'correction', label: 'Correction — fix wrong or outdated data' },
+          { value: 'objection', label: 'Objection — stop optional processing of their data' },
+          { value: 'erasure', label: 'Erasure — remove analytics-derived data' },
+        ] },
+        { name: 'details', label: 'Details, as stated by the resident', type: 'textarea', required: true },
+      ],
+      submitLabel: 'Receive request',
+    });
+    if (v) run(() => client.post(`/admin/residents/${residentId}/data-subject-requests`, v), 'Request received and sent to the Captain for decision.');
   };
 
   return (
@@ -100,7 +135,7 @@ export default function ResidentServicePanels({ residentId }: { residentId: numb
           <table className="data-table">
             <thead><tr><th>Issued</th><th>Requested by</th><th>ID presented</th><th>Purpose</th><th>Issued by</th></tr></thead>
             <tbody>
-              {copies.map((c) => <tr key={c.id}><td>{new Date(c.issued_at).toLocaleString()}</td><td>{c.requested_by_name}</td><td>{c.id_presented}</td><td>{c.purpose}</td><td>{c.issuer?.full_name}</td></tr>)}
+              {copies.map((c) => <tr key={c.id}><td>{formatDateTime(c.issued_at)}</td><td>{c.requested_by_name}</td><td>{c.id_presented}</td><td>{c.purpose}</td><td>{c.issuer?.full_name}</td></tr>)}
               {copies.length === 0 && <tr><td colSpan={5}>No copies issued.</td></tr>}
             </tbody>
           </table>

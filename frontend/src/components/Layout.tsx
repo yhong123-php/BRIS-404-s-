@@ -2,34 +2,51 @@ import { useState, type FormEvent } from 'react';
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
-  ArchiveIcon,
   AssistantIcon,
   AuditIcon,
+  BriefcaseIcon,
+  CalendarIcon,
   ChevronDownIcon,
   DashboardIcon,
-  HouseholdsIcon,
+  DatabaseIcon,
+  KeyIcon,
+  LockIcon,
   LogoutIcon,
+  ReliefIcon,
   ReportsIcon,
   ResidentsIcon,
   SearchIcon,
-  ShieldIcon,
+  UsersCogIcon,
 } from './icons';
 import ThemeToggleButton from './ThemeToggleButton';
 import { REGISTRY_PERMISSIONS } from '../pages/RegistryPage';
 
-const NAV_ITEMS = [
-  { to: '/', label: 'Dashboard', icon: DashboardIcon, permission: 'dashboard.view', end: true },
-  { to: '/residents', label: 'Residents & Households', icon: ResidentsIcon, permission: REGISTRY_PERMISSIONS },
-  { to: '/relief', label: 'Relief Distribution', icon: HouseholdsIcon, permission: 'relief.view' },
-  { to: '/population-events', label: 'Births, Deaths & Transfers', icon: ResidentsIcon, permission: 'population_events.view' },
-  { to: '/opportunities', label: 'Opportunities', icon: ReportsIcon, permission: 'f2.view' },
-  { to: '/reports', label: 'Reports', icon: ReportsIcon, permission: 'reports.generate.all' },
-  { to: '/assistant', label: 'AI Assistant', icon: AssistantIcon, permission: 'assistant.use' },
-  { to: '/audit-logs', label: 'Audit Log', icon: AuditIcon, permission: 'audit.view' },
-  { to: '/privacy', label: 'Data Privacy', icon: ShieldIcon, permission: ['g2.receive', 'g2.decide'] },
-  { to: '/users', label: 'User Management', icon: ResidentsIcon, permission: 'users.manage' },
-  { to: '/backups', label: 'Backup & Restore', icon: ArchiveIcon, permission: 'backup.restore' },
-  { to: '/assistant-access', label: 'Assistant Access', icon: ShieldIcon, permission: 'assistant.configure' },
+type NavItem = { to: string; label: string; icon: typeof DashboardIcon; permission: string | string[]; end?: boolean };
+
+/** Sidebar sections, in the order of the SDD module groups. */
+const NAV_SECTIONS: { title: string; items: NavItem[] }[] = [
+  { title: 'Overview', items: [
+    { to: '/', label: 'Dashboard', icon: DashboardIcon, permission: 'dashboard.view', end: true },
+  ] },
+  { title: 'Registry', items: [
+    { to: '/residents', label: 'Residents & Households', icon: ResidentsIcon, permission: REGISTRY_PERMISSIONS },
+    { to: '/population-events', label: 'Births, Deaths & Transfers', icon: CalendarIcon, permission: 'population_events.view' },
+  ] },
+  { title: 'Services', items: [
+    { to: '/relief', label: 'Relief Distribution', icon: ReliefIcon, permission: 'relief.view' },
+    { to: '/opportunities', label: 'Opportunities', icon: BriefcaseIcon, permission: 'f2.view' },
+  ] },
+  { title: 'Analytics', items: [
+    { to: '/reports', label: 'Reports', icon: ReportsIcon, permission: 'reports.generate.all' },
+    { to: '/assistant', label: 'AI Assistant', icon: AssistantIcon, permission: 'assistant.use' },
+  ] },
+  { title: 'Administration', items: [
+    { to: '/privacy', label: 'Data Privacy', icon: LockIcon, permission: ['g2.receive', 'g2.decide'] },
+    { to: '/users', label: 'User Management', icon: UsersCogIcon, permission: 'users.manage' },
+    { to: '/audit-logs', label: 'Audit Log', icon: AuditIcon, permission: 'audit.view' },
+    { to: '/backups', label: 'Backup & Restore', icon: DatabaseIcon, permission: 'backup.restore' },
+    { to: '/assistant-access', label: 'Assistant Access', icon: KeyIcon, permission: 'assistant.configure' },
+  ] },
 ];
 
 function navLinkClasses(isActive: boolean) {
@@ -63,9 +80,8 @@ export default function Layout() {
     setSearch('');
   };
 
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    Array.isArray(item.permission) ? item.permission.some(hasPermission) : hasPermission(item.permission)
-  );
+  const allowed = (item: NavItem) => (Array.isArray(item.permission) ? item.permission.some(hasPermission) : hasPermission(item.permission));
+  const visibleSections = NAV_SECTIONS.map((section) => ({ ...section, items: section.items.filter(allowed) })).filter((section) => section.items.length > 0);
 
   return (
     <div className="min-h-screen bg-white font-sans text-gray-900 transition-colors duration-300 dark:bg-bg-dark dark:text-gray-100">
@@ -86,21 +102,32 @@ export default function Layout() {
             BRIS
           </span>
         </div>
-        <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {visibleItems.map((item) => (
-            <NavLink
-              key={item.label}
-              to={item.to}
-              end={item.end}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) => navLinkClasses(isActive)}
-              onClick={() => setMobileNavOpen(false)}
-            >
-              <item.icon className="shrink-0" />
-              <span className={`whitespace-nowrap transition-opacity duration-200 ${collapsed ? 'opacity-0' : 'opacity-100'}`}>
-                {item.label}
-              </span>
-            </NavLink>
+        <nav className="flex-1 overflow-y-auto p-3" aria-label="Main">
+          {visibleSections.map((section, i) => (
+            <div key={section.title} className={i > 0 ? 'mt-4' : ''}>
+              {collapsed ? (
+                i > 0 && <div className="mx-3 mb-2 border-t border-white/10" />
+              ) : (
+                <div className="mb-1 px-3 text-[11px] font-semibold uppercase tracking-wider text-gray-500">{section.title}</div>
+              )}
+              <div className="space-y-1">
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.label}
+                    to={item.to}
+                    end={item.end}
+                    title={collapsed ? item.label : undefined}
+                    className={({ isActive }) => navLinkClasses(isActive)}
+                    onClick={() => setMobileNavOpen(false)}
+                  >
+                    <item.icon className="shrink-0" />
+                    <span className={`whitespace-nowrap transition-opacity duration-200 ${collapsed ? 'opacity-0' : 'opacity-100'}`}>
+                      {item.label}
+                    </span>
+                  </NavLink>
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
 
@@ -109,7 +136,7 @@ export default function Layout() {
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
-          className="hidden items-center justify-center gap-2 border-t border-white/10 py-3 text-gray-400 hover:bg-white/5 hover:text-primary md:flex"
+          className="sidebar-toggle hidden items-center justify-center gap-2 border-t border-white/10 py-3 text-gray-400 hover:bg-white/5 hover:text-primary md:flex"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           <ChevronDownIcon width={16} height={16} className={`transition-transform duration-300 ${collapsed ? '-rotate-90' : 'rotate-90'}`} />

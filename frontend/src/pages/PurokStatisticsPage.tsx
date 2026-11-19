@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { BarChart, PageSkeleton } from '../components/ui';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Purok, PurokStatistics } from '../api/types';
@@ -32,7 +33,7 @@ export default function PurokStatisticsPage() {
   }, [id]);
 
   if (error) return <div className="form-error">{error}</div>;
-  if (!stats) return <p>Loading…</p>;
+  if (!stats) return <PageSkeleton cards={4} />;
 
   return (
     <div>
@@ -67,23 +68,13 @@ export default function PurokStatisticsPage() {
       </div>
 
       <div className="detail-section">
+        <h3>Sex</h3>
+        <BarChart data={[{ label: 'Male', value: stats.male_count }, { label: 'Female', value: stats.female_count }]} />
+      </div>
+
+      <div className="detail-section">
         <h3>Age distribution</h3>
-        <table className="data-table">
-          <thead>
-            <tr>
-              {AGE_BAND_ORDER.map((band) => (
-                <th key={band}>{band}</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              {AGE_BAND_ORDER.map((band) => (
-                <td key={band}>{stats.age_band_counts[band] ?? 0}</td>
-              ))}
-            </tr>
-          </tbody>
-        </table>
+        <BarChart data={AGE_BAND_ORDER.map((band) => ({ label: `${band} yrs`, value: stats.age_band_counts[band] ?? 0 }))} />
       </div>
     </div>
   );

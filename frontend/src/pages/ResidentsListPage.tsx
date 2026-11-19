@@ -5,6 +5,7 @@ import client from '../api/client';
 import { ArchiveIcon, EditIcon, SearchIcon } from '../components/icons';
 import type { PaginatedResponse, Resident } from '../api/types';
 import { useAuth } from '../context/AuthContext';
+import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
 
 // The -strong/dark: pairing keeps badge text at 4.5:1+ against its own
@@ -28,6 +29,7 @@ export default function ResidentsListPage() {
   const [total, setTotal] = useState(0);
   const { hasPermission } = useAuth();
   const toast = useToast();
+  const dialog = useDialog();
 
   const load = async (query: string, pageNum: number) => {
     setLoading(true);
@@ -61,7 +63,12 @@ export default function ResidentsListPage() {
   };
 
   const archive = async (resident: Resident) => {
-    if (!window.confirm(`Archive ${resident.full_name}? This can't be undone from the list.`)) return;
+    const ok = await dialog.confirm({
+      title: 'Archive resident',
+      message: <>Archive <strong>{resident.full_name}</strong>? The record is kept but no longer active. Only the Barangay Captain can restore it.</>,
+      confirmLabel: 'Archive', tone: 'danger',
+    });
+    if (!ok) return;
     try {
       await client.post(`/admin/residents/${resident.id}/archive`);
       toast.success(`${resident.full_name} archived successfully.`);
@@ -126,11 +133,11 @@ export default function ResidentsListPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr>
-                <td colSpan={7} className="px-5 py-8 text-center text-gray-500 dark:text-gray-400">
-                  Loading…
-                </td>
-              </tr>
+              Array.from({ length: 6 }, (_, i) => (
+                <tr key={i}>
+                  <td colSpan={7} className="px-5 py-3"><div className="skeleton skeleton-line" style={{ margin: 0 }} /></td>
+                </tr>
+              ))
             ) : residents.length === 0 ? (
               <tr>
                 <td colSpan={7} className="px-5 py-8 text-center text-gray-500 dark:text-gray-400">
