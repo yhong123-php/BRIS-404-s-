@@ -294,7 +294,7 @@ export default function ResidentDetailPage() {
 
       {tab === 'sectors' && hasPermission('classifications.view') && (
         <section className="detail-section">
-          <h3>Sectoral Classifications (A5)</h3>
+          <h3>Sectoral Classifications</h3>
           {hasPermission('classifications.manage') && suggestions.length > 0 && (
             <div className="suggestion-box">
               {suggestions.map((s) => (
@@ -345,7 +345,7 @@ export default function ResidentDetailPage() {
 
       {tab === 'sectors' && hasPermission('a6.view') && (
         <section className="detail-section">
-          <h3>Skills &amp; Livelihood (A6)</h3>
+          <h3>Skills &amp; Livelihood</h3>
           <table className="data-table">
             <thead>
               <tr>

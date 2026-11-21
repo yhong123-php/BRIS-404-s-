@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom';
 import client from '../api/client';
 import type { Family, PaginatedResponse } from '../api/types';
 import { useAuth } from '../context/AuthContext';
+import { EmptyRow, SkeletonLines } from '../components/ui';
 
 export default function FamiliesPage() {
   const [families, setFamilies] = useState<Family[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [familyName, setFamilyName] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -14,7 +16,7 @@ export default function FamiliesPage() {
   const { hasPermission } = useAuth();
 
   const load = () => {
-    client.get<PaginatedResponse<Family>>('/admin/families').then(({ data }) => setFamilies(data.data));
+    client.get<PaginatedResponse<Family>>('/admin/families').then(({ data }) => setFamilies(data.data)).finally(() => setLoading(false));
   };
 
   useEffect(load, []);
@@ -84,10 +86,13 @@ export default function FamiliesPage() {
               <td>{f.member_count ?? 0}</td>
             </tr>
           ))}
-          {families.length === 0 && (
-            <tr>
-              <td colSpan={3}>No families found.</td>
-            </tr>
+          {loading && <tr><td colSpan={3}><SkeletonLines lines={4} /></td></tr>}
+          {!loading && families.length === 0 && (
+            <EmptyRow
+              colSpan={3}
+              message="No families recorded yet."
+              action={hasPermission('relationships.manage') && !showForm ? <button type="button" className="button-sm button-primary" onClick={() => setShowForm(true)}>Add the first family</button> : undefined}
+            />
           )}
         </tbody>
       </table>

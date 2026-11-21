@@ -1,7 +1,7 @@
 import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, DocumentHeader, formatDate, formatDateTime, humanize, StatusBadge, PageSkeleton, Breadcrumb, EmptyRow } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, formatDateTime, humanize, StatusBadge, PageSkeleton, Breadcrumb, EmptyRow, Drawer } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useDialog } from '../context/DialogContext';
 import { useToast } from '../context/ToastContext';
@@ -54,6 +54,14 @@ interface Beneficiary {
   claims: { id: number; claimant_name: string; relationship_to_head: string | null; claimed_at: string; released_by: string | null; reversed_at: string | null; reversal_reason: string | null }[];
 }
 
+/** The life of a distribution, shown above the list with how many are at each stage. */
+const RELIEF_STEPS = [
+  { status: 'draft', title: 'Draft', text: 'Secretary sets the goods and rule; eligible households are listed automatically.' },
+  { status: 'pending_approval', title: 'Awaiting approval', text: 'Captain reviews the list. Approval freezes it.' },
+  { status: 'open', title: 'Open for claims', text: 'Release by purok. One claim per household.' },
+  { status: 'closed', title: 'Closed', text: 'Unclaimed households are recorded for follow-up.' },
+];
+
 export function ReliefListPage() {
   const { hasPermission } = useAuth();
   const toast = useToast();
@@ -99,14 +107,25 @@ export function ReliefListPage() {
     <div>
       <div className="page-header">
         <h2>Relief Distribution</h2>
-        {hasPermission('relief.create') && <button className="button-primary" onClick={() => setShowForm((s) => !s)}>{showForm ? 'Close' : '+ New distribution'}</button>}
+        {hasPermission('relief.create') && <button className="button-primary" onClick={() => setShowForm(true)}>+ New distribution</button>}
       </div>
-      <p className="note">Prepared by the Barangay Secretary, approved by the Barangay Captain. The beneficiary list is frozen on approval. One claim per household.</p>
+      <ol className="steps" aria-label="How a relief distribution moves">
+        {RELIEF_STEPS.map((step, i) => {
+          const count = items.filter((d) => d.status === step.status).length;
+          return (
+            <li key={step.status} className={count > 0 ? 'has-items' : ''}>
+              <span className="step-num">{i + 1}</span>
+              <span className="step-body">
+                <span className="step-title">{step.title} <span className="step-count">{count}</span></span>
+                <span className="step-text">{step.text}</span>
+              </span>
+            </li>
+          );
+        })}
+      </ol>
 
-      {showForm && (
-        <form className="panel" onSubmit={create}>
-          <h4>New distribution</h4>
-          <p className="note">The system lists the eligible households automatically, ranks them by priority, and groups them by purok. Nothing is released until the Barangay Captain approves the list.</p>
+      <Drawer open={showForm} title="New distribution" onClose={() => setShowForm(false)} description="The system lists the eligible households automatically, ranks them by priority, and groups them by purok. Nothing is released until the Barangay Captain approves the list.">
+        <form className="drawer-form" onSubmit={create}>
           <div className="form-grid">
             <label>Title *<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Typhoon response — food packs" /></label>
             <label>Goods *<input required value={form.goods_description} onChange={(e) => setForm({ ...form, goods_description: e.target.value })} /></label>
@@ -152,7 +171,7 @@ export function ReliefListPage() {
           </div>
           <div className="form-actions"><button type="submit" className="button-primary" disabled={saving}>{saving ? 'Listing eligible households…' : 'Create and list eligible households'}</button></div>
         </form>
-      )}
+      </Drawer>
 
       <table className="data-table">
         <thead><tr><th>Distribution</th><th>Goods</th><th>Dates</th><th>Households allocated</th><th>Claimed</th><th>Status</th></tr></thead>

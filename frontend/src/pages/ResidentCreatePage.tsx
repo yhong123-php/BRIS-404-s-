@@ -217,7 +217,7 @@ export default function ResidentCreatePage() {
         <div className="page-header"><h2>Possible duplicate found</h2></div>
         <div className="callout">
           {candidates.length === 1 ? 'An existing resident looks' : `${candidates.length} existing residents look`} like the person you are registering.
-          Compare them before saving, so the same person isn’t registered twice (SDD §4.3).
+          Compare them before saving, so the same person isn’t registered twice.
         </div>
 
         <div className="compare-grid">

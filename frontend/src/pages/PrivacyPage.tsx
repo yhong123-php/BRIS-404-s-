@@ -19,7 +19,7 @@ interface Dsr {
 }
 
 const TYPE_HELP: Record<string, string> = {
-  access: 'Approve, then issue a resident record copy (E1) from the resident’s page and mark the request completed.',
+  access: 'Approve, then issue a resident record copy from the resident’s page and mark the request completed.',
   correction: 'Approve, then the Barangay Secretary updates the resident’s record and marks the request completed.',
   objection: 'Approval removes analytics-derived data (AI suggestions, opportunity matches) and revokes optional consents.',
   erasure: 'Approval removes analytics-derived data and revokes optional consents. Official registry data is retained as a public record and blocked from analytics.',

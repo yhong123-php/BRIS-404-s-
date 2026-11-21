@@ -226,6 +226,7 @@ class ApprovedQueryFunctions
 
         return QueryResult::make('listResidents', 'residents', $p)
             ->figure($this->scopeLabel('Registered residents', $p), $total)
+            ->when(! isset($p['purok']) && ($top = $this->topPurok($byPurok)) !== null, fn (QueryResult $r) => $r->figure('Purok with the most residents', $top))
             ->table('Residents', ['Name', 'Purok', 'Sex', 'Age'], $rows->map(fn (Resident $r) => [
                 $r->full_name, $r->purok?->name ?? '—', ucfirst($r->sex), $r->age,
             ])->all(), $total)
@@ -275,7 +276,7 @@ class ApprovedQueryFunctions
         $rows = $query->orderBy('last_name')->limit(self::LIST_LIMIT)->get();
 
         return QueryResult::make('findResidentsByProfile', 'residents', $p)
-            ->figure('Matching residents', $total)
+            ->figure($this->scopeLabel($this->profileLabel($p), $p), $total)
             ->table('Matching residents', ['Name', 'Purok', 'Sex', 'Age', 'Civil status', 'Occupation'], $rows->map(fn (Resident $r) => [
                 $r->full_name, $r->purok?->name ?? '—', ucfirst($r->sex), $r->age, ucfirst($r->civil_status), $r->occupation ?: '—',
             ])->all(), $total)
@@ -313,7 +314,8 @@ class ApprovedQueryFunctions
 
         return $result
             ->figure($this->scopeLabel($label, $p), $total)
-            ->figure('Households they belong to', $households)
+            ->when($households > 0, fn (QueryResult $r) => $r->figure('Households these residents belong to', $households))
+            ->when(! isset($p['purok']) && ($top = $this->topPurok($byPurok)) !== null, fn (QueryResult $r) => $r->figure("Purok with the most {$typeName} records", $top))
             ->table($typeName, ['Name', 'Purok', 'Age'], $rows->map(fn (Resident $r) => [
                 $r->full_name, $r->purok?->name ?? '—', $r->age,
             ])->all(), $total)
@@ -408,7 +410,7 @@ class ApprovedQueryFunctions
                 'employed' => $employed,
                 'unemployed' => $unemployed,
                 'not_in_labor_force' => (int) ($counts['not_in_labor_force'] ?? 0),
-                'not_recorded' => (int) ($counts[''] ?? 0) + (int) ($counts[null] ?? 0),
+                'not_recorded' => (int) ($counts[''] ?? 0) /* a NULL key is stored as '' */,
                 'unemployment_rate_percent' => $laborForce > 0 ? round($unemployed / $laborForce * 100, 1) : null,
             ];
         });
@@ -551,7 +553,7 @@ class ApprovedQueryFunctions
             ->select('educational_attainment', DB::raw('count(*) as c'))->groupBy('educational_attainment')->pluck('c', 'educational_attainment');
 
         $distribution = collect(Resident::EDUCATION_LEVELS)->map(fn ($label, $key) => (int) ($counts[$key] ?? 0));
-        $notRecorded = (int) ($counts[''] ?? 0) + (int) ($counts[null] ?? 0);
+        $notRecorded = (int) ($counts[''] ?? 0) /* a NULL key is stored as '' */;
 
         $completed = [
             'completed_elementary_or_higher' => $distribution->except(['no_formal_education', 'elementary_level'])->sum(),
@@ -619,6 +621,20 @@ class ApprovedQueryFunctions
             $result->note("{$excluded} active resident(s) without recorded consent for AI community analysis are excluded (Data Privacy Act; record consent on the resident's page).");
         }
 
+        // Nobody in scope has consented: say so plainly instead of reporting
+        // "Active residents: 0" next to a dashboard that shows residents.
+        if ($result->missing !== null) {
+            $purok = $p['purok'] ?? null;
+            $active = $this->residentScope($purok)->count();
+            $where = $purok ? " in {$purok->name}" : '';
+            $result->figures = [];
+            $result->evidence = [];
+            $result->notes = [];
+            $result->missing($active > 0
+                ? "None of the {$active} active resident".($active === 1 ? '' : 's')."{$where} ".($active === 1 ? 'has' : 'have')." consent recorded for AI community analysis yet, so there is nothing to analyse. Record consent on each resident's page (Consent section) and ask again."
+                : "No active residents are recorded{$where}.");
+        }
+
         return $result;
     }
 
@@ -668,7 +684,9 @@ class ApprovedQueryFunctions
         $result->evidence('Active residents', $population)
             ->evidence('Youth aged 15–24', $youth)
             ->evidence('Residents aged 60 and over', $seniors);
-        foreach (['employed' => 'Employed residents', 'unemployed' => 'Unemployed residents', 'not_recorded' => 'Residents with no employment status recorded'] as $key => $label) {
+        // "Not recorded" counts are gaps in the data, not community needs: they
+        // are shown as notes, never offered as evidence for a program.
+        foreach (['employed' => 'Employed residents', 'unemployed' => 'Unemployed residents'] as $key => $label) {
             if (isset($facts['employment'][$key])) {
                 $result->evidence($label, $facts['employment'][$key]);
             }
@@ -685,24 +703,107 @@ class ApprovedQueryFunctions
             }
         }
         if ($facts['education_not_recorded']) {
-            $result->evidence('Residents with no educational attainment recorded', $facts['education_not_recorded']);
+            $result->note("{$facts['education_not_recorded']} of {$population} active resident(s) have no educational attainment recorded. Encode it for a more complete analysis.");
         }
+        if ($facts['employment']['not_recorded'] ?? 0) {
+            $result->note("{$facts['employment']['not_recorded']} of {$population} active resident(s) have no employment status recorded.");
+        }
+        // Sector, assistance, and skill figures are barangay-wide even when the
+        // analysis is for one purok; their labels say so.
+        $wide = $purok ? ' (whole barangay)' : '';
         foreach ($facts['sector_counts'] ?? [] as $sector => $count) {
             if ($count > 0) {
-                $result->evidence("Recorded {$sector}", $count);
+                $result->evidence("Recorded {$sector}{$wide}", $count);
             }
         }
         foreach (is_array($facts['assistance_by_type']) ? $facts['assistance_by_type'] : [] as $type => $row) {
-            $result->evidence('Residents who received '.$type.' assistance', $row['residents']);
+            $result->evidence('Residents who received '.$type.' assistance'.$wide, $row['residents']);
         }
         foreach ($facts['top_occupations'] as $occupation => $count) {
-            $result->evidence('Residents working as '.ucwords($occupation), $count);
+            $result->evidence('Residents working as '.ucwords($occupation).$wide, $count);
         }
         foreach ($facts['top_verified_skills'] as $skill => $count) {
-            $result->evidence("Residents with verified {$skill} skill", $count);
+            $result->evidence("Residents with verified {$skill} skill{$wide}", $count);
         }
 
-        return $population === 0 ? $result->missing('No active residents with consent for AI community analysis are recorded'.($purok ? " in {$purok->name}" : '').'.') : $result;
+        if ($population === 0) {
+            return $result->missing('No active residents with consent for AI community analysis are recorded'.($purok ? " in {$purok->name}" : '').'.');
+        }
+
+        return $this->recommendationOptions($result, $facts, $population, $youth, $seniors, $purok);
+    }
+
+    /**
+     * Rules that turn the figures into recommendations, each citing the
+     * figures that justify it. A 3B model reliably misread several figures at
+     * once ("4 residents, all aged 60+"), so it no longer writes these: it only
+     * picks the most relevant ones for the question (AssistantService).
+     */
+    private function recommendationOptions(QueryResult $result, array $facts, int $population, int $youth, int $seniors, ?Purok $purok): QueryResult
+    {
+        $where = $purok ? " in {$purok->name}" : '';
+        $wide = $purok ? ' (whole barangay)' : '';
+        $employment = $facts['employment'] ?? [];
+        $education = $facts['education_completed'] ?? [];
+        $sectors = $facts['sector_counts'] ?? [];
+
+        if (($employment['unemployed'] ?? 0) > 0) {
+            $basedOn = ["Unemployed residents: {$employment['unemployed']}"];
+            if (($employment['unemployment_rate_percent'] ?? null) !== null) {
+                $basedOn[] = "Unemployment rate: {$employment['unemployment_rate_percent']}%";
+            }
+            if (! $purok && ($highest = $facts['purok_with_highest_unemployment_rate'])) {
+                $basedOn[] = "Purok with the highest unemployment rate: {$highest['purok']} ({$highest['rate_percent']}%)";
+            }
+            $result->option("Run a livelihood or job-placement program for the unemployed residents{$where}, using job matching in the Opportunities module.", $basedOn);
+        }
+
+        if (($sectors['Out-of-School Youth'] ?? 0) > 0) {
+            $result->option('Enrol out-of-school youth in the Alternative Learning System (ALS) or a TESDA vocational course.', ["Recorded Out-of-School Youth{$wide}: {$sectors['Out-of-School Youth']}"]);
+        } elseif ($youth > 0) {
+            $result->option("Offer skills training or TESDA courses for the youth aged 15–24{$where}.", ["Youth aged 15–24: {$youth}"]);
+        }
+
+        $recorded = $population - (int) ($facts['education_not_recorded'] ?? 0);
+        $noHighSchool = $recorded - (int) ($education['completed_high_school_or_higher'] ?? 0);
+        if ($recorded > 0 && $noHighSchool > 0) {
+            $result->option("Offer educational support, such as ALS or scholarships, to residents{$where} who have not completed high school.", ["Residents with education recorded who have not completed high school: {$noHighSchool}"]);
+        }
+
+        if ($seniors > 0) {
+            $result->option("Hold a senior citizens' wellness program{$where}: health check-ups and follow-up on social pension.", ["Residents aged 60 and over: {$seniors}"]);
+        }
+
+        foreach ([
+            'Person with Disability' => 'Help persons with disability get their PWD ID and join accessible livelihood activities.',
+            'Solo Parent' => 'Support solo parents with livelihood assistance and solo parent ID processing.',
+            '4Ps Member' => "Coordinate with DSWD's Sustainable Livelihood Program for 4Ps member households.",
+            'Indigent' => 'Prioritize indigent residents in relief distribution and medical assistance.',
+            'Pregnant' => 'Run a maternal health program with the barangay health station for pregnant residents.',
+        ] as $sector => $text) {
+            if (($sectors[$sector] ?? 0) > 0) {
+                $result->option($text, ["Recorded {$sector}{$wide}: {$sectors[$sector]}"]);
+            }
+        }
+
+        foreach (array_slice($facts['top_verified_skills'] ?? [], 0, 1, true) as $skill => $count) {
+            if ($count > 0) {
+                $result->option("Involve residents with verified {$skill} skill as trainers or paid workers in barangay projects.", ["Residents with verified {$skill} skill{$wide}: {$count}"]);
+            }
+        }
+
+        $gaps = [];
+        if (($facts['education_not_recorded'] ?? 0) > 0) {
+            $gaps[] = "Residents with no educational attainment recorded: {$facts['education_not_recorded']} of {$population}";
+        }
+        if (($employment['not_recorded'] ?? 0) > 0) {
+            $gaps[] = "Residents with no employment status recorded: {$employment['not_recorded']} of {$population}";
+        }
+        if ($gaps !== []) {
+            $result->option('Complete the missing education and employment details on resident records, so this analysis is more reliable.', $gaps);
+        }
+
+        return $result;
     }
 
     // ------------------------------------------------------------------ helpers
@@ -744,6 +845,48 @@ class ApprovedQueryFunctions
         }
 
         return $purok;
+    }
+
+    /** "Purok 1-A (4)", or "Purok 2 and Purok 3 (5 each)" on a tie; null when there is nothing to rank. */
+    private function topPurok(Collection $byPurok): ?string
+    {
+        $byPurok = $byPurok->except('No purok')->filter(fn ($c) => $c > 0);
+        if ($byPurok->isEmpty()) {
+            return null;
+        }
+        $max = $byPurok->max();
+        $names = $byPurok->filter(fn ($c) => $c === $max)->keys();
+
+        return $names->count() === 1 ? "{$names->first()} ({$max})" : $names->implode(' and ')." ({$max} each)";
+    }
+
+    /** "Female married residents aged 60+" from the profile filters. */
+    private function profileLabel(array $p): string
+    {
+        $words = array_filter([
+            isset($p['civil_status']) ? $p['civil_status'] : null,
+            isset($p['sex']) ? $p['sex'] : null,
+            'residents',
+        ]);
+        $label = ucfirst(implode(' ', $words));
+        $min = $p['min_age'] ?? null;
+        $max = $p['max_age'] ?? null;
+        // A 0–99 range is no filter at all (the model sometimes sends it).
+        if ($min !== null && $max !== null && ($min > 0 || $max < 99)) {
+            $label .= " aged {$min}–{$max}";
+        } elseif ($min !== null && $min > 0) {
+            $label .= " aged {$min}+";
+        } elseif ($max !== null && $max < 99) {
+            $label .= " aged {$max} or younger";
+        }
+        if (isset($p['occupation'])) {
+            $label .= " working as {$p['occupation']}";
+        }
+        if (isset($p['voter_status'])) {
+            $label .= $p['voter_status'] === 'registered' ? ' (registered voters)' : ' (not registered voters)';
+        }
+
+        return $label;
     }
 
     private function scopeLabel(string $label, array $p): string

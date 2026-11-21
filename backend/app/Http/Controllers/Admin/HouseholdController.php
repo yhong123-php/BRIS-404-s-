@@ -27,6 +27,15 @@ class HouseholdController extends Controller
             $query->where('purok_id', $purokId);
         }
 
+        // Header search: household number, street, or a member's name.
+        if ($search = $request->string('search')->trim()->toString()) {
+            $query->where(function ($q) use ($search) {
+                $q->where('household_number', 'like', "%{$search}%")
+                    ->orWhere('street', 'like', "%{$search}%")
+                    ->orWhereHas('members.resident', fn ($r) => $r->where('last_name', 'like', "%{$search}%"));
+            });
+        }
+
         $households = $query->orderBy('household_number')->paginate($request->integer('per_page', 25));
 
         return HouseholdResource::collection($households);

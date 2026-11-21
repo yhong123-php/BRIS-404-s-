@@ -1,3 +1,4 @@
+import { Tabs } from '../components/ui';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import FamiliesPage from './FamiliesPage';
@@ -33,20 +34,7 @@ export default function RegistryPage() {
 
   return (
     <div>
-      <div className="mb-5 flex gap-1 border-b border-gray-200 dark:border-white/10">
-        {tabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setParams(t.id === 'residents' ? {} : { tab: t.id })}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.id ? 'text-primary-dark dark:text-primary' : 'text-gray-500 hover:text-charcoal dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            {t.label}
-            {tab === t.id && <span className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" />}
-          </button>
-        ))}
-      </div>
+      <Tabs tabs={tabs.map((t) => ({ id: t.id, label: t.label }))} active={tab} onChange={(id) => setParams(id === 'residents' ? {} : { tab: id })} />
 
       {tab === 'residents' && <ResidentsListPage />}
       {tab === 'households' && <HouseholdsListPage />}

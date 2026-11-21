@@ -118,7 +118,7 @@ export default function UsersPage() {
 
       {tab === 'roles' && (
         <>
-          <p className="note">Defaults follow SDD Table 5.1. Changes take effect at the user’s next request and are recorded in the audit log.</p>
+          <p className="note">Each role starts with the standard permissions for that position. Changes take effect at the user’s next request and are recorded in the audit log.</p>
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr><th>Module</th><th>Permission</th>{roles.map((r) => <th key={r.id}>{ROLE_LABEL[r.name] ?? r.name}</th>)}</tr></thead>

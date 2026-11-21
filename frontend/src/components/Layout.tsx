@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import {
   AssistantIcon,
@@ -15,10 +15,10 @@ import {
   ReliefIcon,
   ReportsIcon,
   ResidentsIcon,
-  SearchIcon,
   UsersCogIcon,
 } from './icons';
 import ThemeToggleButton from './ThemeToggleButton';
+import GlobalSearch from './GlobalSearch';
 import { REGISTRY_PERMISSIONS } from '../pages/RegistryPage';
 
 type NavItem = { to: string; label: string; icon: typeof DashboardIcon; permission: string | string[]; end?: boolean };
@@ -60,25 +60,52 @@ function navLinkClasses(isActive: boolean) {
   ].join(' ');
 }
 
+/** "Barangay Captain" → "BC", so the captain and secretary avatars differ at a glance. */
+function initials(name: string | null | undefined): string {
+  const parts = (name ?? '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts.length === 1 ? parts[0].slice(0, 2) : parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
+/** BRIS mark: a house, for the households the registry is built around. */
+function BrandMark() {
+  return (
+    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary text-charcoal" aria-hidden="true">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 11.5 12 4l9 7.5" />
+        <path d="M5.5 9.8V20h13V9.8" />
+        <path d="M10 20v-5h4v5" />
+      </svg>
+    </div>
+  );
+}
+
 export default function Layout() {
   const { user, logout, hasPermission } = useAuth();
   const navigate = useNavigate();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [search, setSearch] = useState('');
-  const [collapsed, setCollapsed] = useState(false);
+  // Remembered between visits; storage can be unavailable (private mode), so failures fall back to expanded.
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return localStorage.getItem('bris_sidebar_collapsed') === '1'; } catch { return false; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem('bris_sidebar_collapsed', collapsed ? '1' : '0'); } catch { /* not saved */ }
+  }, [collapsed]);
+
+  useEffect(() => {
+    if (!profileOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setProfileOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [profileOpen]);
 
   const handleLogout = async () => {
     await logout();
     navigate('/login');
   };
 
-  const handleSearch = (e: FormEvent) => {
-    e.preventDefault();
-    if (!search.trim()) return;
-    navigate(`/residents?search=${encodeURIComponent(search.trim())}`);
-    setSearch('');
-  };
 
   const allowed = (item: NavItem) => (Array.isArray(item.permission) ? item.permission.some(hasPermission) : hasPermission(item.permission));
   const visibleSections = NAV_SECTIONS.map((section) => ({ ...section, items: section.items.filter(allowed) })).filter((section) => section.items.length > 0);
@@ -94,13 +121,12 @@ export default function Layout() {
           mobileNavOpen ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'w-20' : 'w-64'}`}
       >
-        <div className="flex h-16 items-center gap-2 border-b border-white/10 px-5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary text-sm font-bold text-charcoal">
-            B
+        <div className="flex h-16 items-center gap-3 border-b border-white/10 px-5">
+          <BrandMark />
+          <div className={`min-w-0 leading-tight transition-opacity duration-200 ${collapsed ? 'opacity-0' : 'opacity-100'}`}>
+            <div className="whitespace-nowrap font-semibold text-white">BRIS</div>
+            <div className="whitespace-nowrap text-[11px] text-gray-400">Barangay San Isidro</div>
           </div>
-          <span className={`whitespace-nowrap font-semibold text-white transition-opacity duration-200 ${collapsed ? 'opacity-0' : 'opacity-100'}`}>
-            BRIS
-          </span>
         </div>
         <nav className="flex-1 overflow-y-auto p-3" aria-label="Main">
           {visibleSections.map((section, i) => (
@@ -147,7 +173,7 @@ export default function Layout() {
         <header className="sticky top-0 z-20 flex h-16 items-center gap-4 border-b border-gray-200 bg-bg-light px-4 text-charcoal transition-colors duration-300 dark:border-white/10 dark:bg-charcoal-deep dark:text-gray-100 sm:px-6">
           <button
             type="button"
-            className="rounded-lg p-2 text-gray-500 hover:bg-black/5 dark:text-gray-400 dark:hover:bg-white/10 md:hidden"
+            className="btn-ghost text-gray-500 dark:text-gray-400 md:hidden"
             onClick={() => setMobileNavOpen((v) => !v)}
             aria-label="Toggle navigation"
           >
@@ -156,15 +182,7 @@ export default function Layout() {
             </svg>
           </button>
 
-          <form onSubmit={handleSearch} className="relative flex-1 max-w-md">
-            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width={18} height={18} />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search residents…"
-              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-charcoal outline-none focus:border-primary focus:ring-1 focus:ring-primary dark:border-white/10 dark:bg-charcoal dark:text-gray-100"
-            />
-          </form>
+          <GlobalSearch />
 
           <div className="ml-auto flex items-center gap-2">
             <ThemeToggleButton className="text-gray-500 dark:text-gray-300" />
@@ -173,10 +191,12 @@ export default function Layout() {
               <button
                 type="button"
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-black/5 dark:hover:bg-white/10"
+                className="btn-ghost inline-flex items-center gap-2"
+                aria-haspopup="menu"
+                aria-expanded={profileOpen}
               >
                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-xs font-semibold text-charcoal">
-                  {user?.full_name?.slice(0, 1).toUpperCase()}
+                  {initials(user?.full_name)}
                 </div>
                 <span className="hidden text-sm font-medium sm:block">{user?.full_name}</span>
                 <ChevronDownIcon width={16} height={16} className="hidden text-gray-400 sm:block" />
@@ -185,16 +205,16 @@ export default function Layout() {
               {profileOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setProfileOpen(false)} />
-                  <div className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 text-gray-900 shadow-lg dark:border-white/10 dark:bg-charcoal dark:text-gray-100">
+                  <div role="menu" className="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-gray-200 bg-white py-1 text-gray-900 shadow-lg dark:border-white/10 dark:bg-charcoal dark:text-gray-100">
                     <div className="border-b border-gray-100 px-4 py-3 dark:border-white/10">
                       <p className="text-sm font-medium">{user?.full_name}</p>
                       <p className="text-xs capitalize text-gray-500 dark:text-gray-400">{user?.role}</p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      className="flex w-full items-center gap-2 px-4 py-2.5 text-sm text-error-strong hover:bg-gray-50 dark:text-error dark:hover:bg-gray-800"
-                    >
+                    <Link role="menuitem" to="/change-password" className="menu-item" onClick={() => setProfileOpen(false)}>
+                      <KeyIcon width={16} height={16} />
+                      Change password
+                    </Link>
+                    <button type="button" role="menuitem" onClick={handleLogout} className="menu-item danger">
                       <LogoutIcon width={16} height={16} />
                       Log out
                     </button>

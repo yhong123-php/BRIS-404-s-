@@ -12,7 +12,7 @@ export default function ThemeToggleButton({ className = '' }: { className?: stri
     <button
       type="button"
       onClick={toggle}
-      className={`relative rounded-lg p-2 transition-colors hover:bg-black/5 dark:hover:bg-white/10 ${className}`}
+      className={`btn-ghost ${className}`}
       aria-label="Toggle dark mode"
     >
       <AnimatePresence mode="wait" initial={false}>

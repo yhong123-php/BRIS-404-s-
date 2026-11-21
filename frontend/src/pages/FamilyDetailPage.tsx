@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { PageSkeleton, humanize, Breadcrumb } from '../components/ui';
+import { PageSkeleton, humanize, Breadcrumb, EmptyRow } from '../components/ui';
 import { useParams } from 'react-router-dom';
 import client from '../api/client';
 import type { Family } from '../api/types';
@@ -63,9 +63,7 @@ export default function FamilyDetailPage() {
               </tr>
             ))}
             {(!family.relationships || family.relationships.length === 0) && (
-              <tr>
-                <td colSpan={5}>No relationships linked to this family yet.</td>
-              </tr>
+              <EmptyRow colSpan={5} message="No relationships linked to this family yet. Link them from a resident's profile." />
             )}
           </tbody>
         </table>

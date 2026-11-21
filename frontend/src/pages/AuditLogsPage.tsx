@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
-import { formatDateTime, SkeletonLines, EmptyRow } from '../components/ui';
+import { formatDateTime, SkeletonLines, EmptyRow, humanize, MODULE_NAMES, moduleName } from '../components/ui';
 import client from '../api/client';
 import type { AuditLogEntry, AssistantQueryLog } from '../api/types';
 import { useAuth } from '../context/AuthContext';
@@ -62,7 +62,10 @@ export default function AuditLogsPage() {
               <option value="">All users</option>
               {users.map((u) => <option key={u.id} value={u.id}>{u.full_name}</option>)}
             </select>
-            <input placeholder="Module (e.g. A1, B1)" value={filters.module} onChange={set('module')} />
+            <select value={filters.module} onChange={set('module')} aria-label="Filter by module">
+              <option value="">All modules</option>
+              {Object.entries(MODULE_NAMES).map(([code, name]) => <option key={code} value={code}>{name}</option>)}
+            </select>
             <input placeholder="Action (e.g. update)" value={filters.action} onChange={set('action')} />
             <input placeholder="Table (e.g. residents)" value={filters.table_name} onChange={set('table_name')} />
             <input placeholder="Record ID" value={filters.record_id} onChange={set('record_id')} style={{ width: '7rem' }} />
@@ -80,9 +83,9 @@ export default function AuditLogsPage() {
                     <tr key={log.id}>
                       <td>{formatDateTime(log.created_at)}</td>
                       <td>{log.user}</td>
-                      <td>{log.action.replace(/_/g, ' ')}</td>
-                      <td>{log.module}</td>
-                      <td>{log.table_name}</td>
+                      <td>{humanize(log.action)}</td>
+                      <td>{moduleName(log.module)}</td>
+                      <td>{humanize(log.table_name)}</td>
                       <td>{log.record_id ?? '—'}</td>
                       <td style={{ maxWidth: '28rem' }}>
                         {(log.new_values || log.old_values) ? (

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import client from '../api/client';
-import { apiError, downloadFile, SkeletonLines } from '../components/ui';
+import { apiError, downloadFile, EmptyRow, SkeletonLines } from '../components/ui';
 import { useToast } from '../context/ToastContext';
 
 /**
@@ -16,6 +16,9 @@ interface Catalog {
   classification_types: { id: number; name: string }[];
 }
 interface Report { header: string; title: string; parameters: Record<string, string>; generated_at: string; generated_by: string; columns: string[]; rows: (string | number | null)[][] }
+
+const PARAM_LABELS: Record<string, string> = { purok_id: 'purok', status: 'status', classification_type_id: 'sector', date_from: 'date range', date_to: 'date range' };
+const paramLabel = (p: string) => PARAM_LABELS[p] ?? p.replace(/_/g, ' ');
 
 export function ReportGenerator() {
   const toast = useToast();
@@ -76,6 +79,20 @@ export function ReportGenerator() {
         <p className="note">Reports contain personal data; every run and export is recorded in the audit log.</p>
       </div>
 
+      {!report && !loading && (
+        <section className="no-print" style={{ marginTop: '1.25rem' }} aria-label="Available reports">
+          <h3 className="note" style={{ margin: '0 0 0.6rem', fontWeight: 600 }}>Available reports — pick one, then press Preview</h3>
+          <div className="report-picker">
+            {catalog.reports.map((r) => (
+              <button key={r.key} type="button" className={r.key === key ? 'active' : ''} aria-pressed={r.key === key} onClick={() => { setKey(r.key); setReport(null); }}>
+                <span className="report-picker-title">{r.title}</span>
+                <span className="report-picker-meta">{r.parameters.length ? `Filter by ${r.parameters.map(paramLabel).filter((v, i, a) => a.indexOf(v) === i).join(', ')}` : 'No filters'}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {report && (
         <div className="print-page" style={{ maxWidth: 'none', padding: '1.5rem', marginTop: '1rem' }}>
           <div className="doc-header" style={{ marginBottom: '1rem' }}>
@@ -84,14 +101,14 @@ export function ReportGenerator() {
           </div>
           <p className="note" style={{ color: '#333' }}>
             {Object.entries(report.parameters).map(([k, v]) => `${k}: ${v ?? '—'}`).join(' · ')}
-            {Object.keys(report.parameters).length ? ' · ' : ''}Generated {report.generated_at} by {report.generated_by} · {report.rows.length} row(s)
+            {Object.keys(report.parameters).length ? ' · ' : ''}Generated {report.generated_at} by {report.generated_by} · {report.rows.length} {report.rows.length === 1 ? 'row' : 'rows'}
           </p>
           <div className="table-scroll">
             <table className="data-table">
               <thead><tr>{report.columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
               <tbody>
                 {report.rows.map((r, i) => <tr key={i}>{r.map((cell, j) => <td key={j}>{cell ?? '—'}</td>)}</tr>)}
-                {report.rows.length === 0 && <tr><td colSpan={report.columns.length}>No records for these parameters.</td></tr>}
+                {report.rows.length === 0 && <EmptyRow colSpan={report.columns.length} message="No records for these filters. Try another purok, status or date range." />}
               </tbody>
             </table>
           </div>

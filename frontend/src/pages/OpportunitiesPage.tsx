@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useState, type FormEvent } from 'reac
 import { Link } from 'react-router-dom';
 import client from '../api/client';
 import { EMPLOYMENT_STATUS_LABELS, type EmploymentStatus } from '../api/types';
-import { apiError, DocumentHeader, formatDate, humanize, StatusBadge, EmptyRow } from '../components/ui';
+import { apiError, DocumentHeader, formatDate, humanize, StatusBadge, EmptyRow, Drawer } from '../components/ui';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
 
@@ -108,14 +108,14 @@ export default function OpportunitiesPage() {
     <div>
       <div className="page-header">
         <h2>Livelihood &amp; Job Opportunities</h2>
-        {canManage && <button className="button-primary" onClick={() => setShowForm((s) => !s)}>{showForm ? 'Close' : '+ Post opportunity'}</button>}
+        {canManage && <button className="button-primary" onClick={() => setShowForm(true)}>+ Post opportunity</button>}
       </div>
       <p className="note">
         Posting an opportunity automatically shortlists the <strong>capable</strong> residents — active, within the age range, in the target puroks, holding a <strong>verified</strong> required skill, and with consent for opportunity matching — grouped by purok. Residents with more of the required skills come first; among equals, unemployed residents come first.
       </p>
 
-      {showForm && (
-        <form className="panel" onSubmit={create}>
+      <Drawer open={showForm} title="Post an opportunity" onClose={() => setShowForm(false)} description="Capable residents are shortlisted automatically and grouped by purok as soon as it is posted.">
+        <form className="drawer-form" onSubmit={create}>
           <div className="form-grid">
             <label>Title *<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></label>
             <label>Type *<select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}><option value="job">Job</option><option value="livelihood">Livelihood</option><option value="training">Training</option></select></label>
@@ -146,7 +146,7 @@ export default function OpportunitiesPage() {
           </div>
           <div className="form-actions"><button type="submit" className="button-primary">Post and shortlist capable residents</button></div>
         </form>
-      )}
+      </Drawer>
 
       <table className="data-table">
         <thead><tr><th>Opportunity</th><th>Type</th><th>Required skills</th><th>Slots</th><th>Closes</th><th>Shortlisted</th><th>Status</th></tr></thead>

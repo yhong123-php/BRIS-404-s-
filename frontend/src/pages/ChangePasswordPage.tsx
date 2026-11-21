@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import client from '../api/client';
 import PasswordInput from '../components/PasswordInput';
 import { useAuth } from '../context/AuthContext';
@@ -10,7 +10,9 @@ export default function ChangePasswordPage() {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const { refreshUser } = useAuth();
+  const { refreshUser, user } = useAuth();
+  // Forced on first login; otherwise opened from the profile menu and can be left.
+  const forced = user?.must_change_password !== false;
   const navigate = useNavigate();
 
   const handleSubmit = async (e: FormEvent) => {
@@ -37,7 +39,9 @@ export default function ChangePasswordPage() {
       <form className="auth-card" onSubmit={handleSubmit}>
         <h1>Change Password</h1>
         <p className="auth-subtitle">
-          Your account was created with a temporary password. Set a new one to continue (SDD §5.1).
+          {forced
+            ? 'Your account was created with a temporary password. Set a new one to continue.'
+            : 'Use at least 8 characters. You will stay signed in.'}
         </p>
         {error && <div className="form-error">{error}</div>}
         <label>
@@ -53,8 +57,9 @@ export default function ChangePasswordPage() {
           <PasswordInput value={confirm} onChange={setConfirm} required minLength={8} />
         </label>
         <button type="submit" disabled={submitting}>
-          {submitting ? 'Saving…' : 'Save and continue'}
+          {submitting ? 'Saving…' : forced ? 'Save and continue' : 'Save new password'}
         </button>
+        {!forced && <Link to="/" className="note" style={{ textAlign: 'center' }}>Cancel</Link>}
       </form>
     </div>
   );

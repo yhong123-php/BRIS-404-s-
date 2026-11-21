@@ -33,26 +33,32 @@ export function ResidentPicker({
 }) {
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<ResidentOption[]>([]);
+  const [state, setState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
 
   useEffect(() => {
     if (search.trim().length < 2) {
       setResults([]);
+      setState('idle');
       return;
     }
+    setState('loading');
+    let cancelled = false;
     const t = setTimeout(() => {
       client
-        .get('/admin/residents', { params: { search, per_page: 8, ...(status ? { status } : {}) } })
-        .then(({ data }) => setResults(data.data))
-        .catch(() => setResults([]));
+        .get('/admin/residents', { params: { search: search.trim(), per_page: 8, ...(status ? { status } : {}) } })
+        .then(({ data }) => { if (!cancelled) { setResults(data.data); setState('done'); } })
+        .catch(() => { if (!cancelled) { setResults([]); setState('error'); } });
     }, 250);
-    return () => clearTimeout(t);
+    return () => { cancelled = true; clearTimeout(t); };
   }, [search, status]);
 
   if (value) {
     return (
       <div className="picked">
-        <strong>{value.full_name}</strong> <span className="muted">({value.resident_number}{value.purok ? ` · ${value.purok.name}` : ''})</span>{' '}
-        <button type="button" onClick={() => onChange(null)}>
+        <span>
+          <strong>{value.full_name}</strong> <span className="muted">({value.resident_number}{value.purok ? ` · ${value.purok.name}` : ''})</span>
+        </span>
+        <button type="button" className="button-sm" onClick={() => onChange(null)} aria-label={`Change resident (currently ${value.full_name})`}>
           Change
         </button>
       </div>
@@ -61,20 +67,35 @@ export function ResidentPicker({
 
   return (
     <div>
-      <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={placeholder} style={{ width: '100%' }} />
-      {results.length > 0 && (
-        <ul className="search-results">
-          {results.map((r) => (
+      <input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder={placeholder}
+        aria-label={placeholder}
+        style={{ width: '100%' }}
+      />
+      {state !== 'idle' && (
+        <ul className="search-results" aria-live="polite">
+          {state === 'loading' && <li className="picker-status">Searching…</li>}
+          {state === 'error' && <li className="picker-status">Could not search right now. Try again.</li>}
+          {state === 'done' && results.length === 0 && (
+            <li className="picker-status">No {status ? `${humanize(status).toLowerCase()} ` : ''}residents match “{search.trim()}”.</li>
+          )}
+          {state === 'done' && results.map((r) => (
             <li key={r.id}>
               <span>
                 {r.full_name} <span className="muted">({r.resident_number}{r.purok ? ` · ${r.purok.name}` : ''})</span>
               </span>
               <button
                 type="button"
+                className="button-sm button-primary"
+                aria-label={`Select ${r.full_name}`}
                 onClick={() => {
                   onChange(r);
                   setSearch('');
                   setResults([]);
+                  setState('idle');
                 }}
               >
                 Select
@@ -94,7 +115,7 @@ export function Badge({ children, tone = 'neutral' }: { children: ReactNode; ton
 const STATUS_TONE: Record<string, 'neutral' | 'good' | 'warn' | 'bad' | 'info'> = {
   active: 'good', granted: 'good', approved: 'good', confirmed: 'good', released: 'good', claimed: 'good', success: 'good', completed: 'good', open: 'good', hired: 'good',
   pending: 'warn', submitted: 'warn', received: 'warn', pending_approval: 'warn', ready_for_pickup: 'info', draft: 'neutral', listed: 'neutral', shortlisted: 'info',
-  head: 'info', verified: 'good', unverified: 'warn', archived: 'neutral', deceased: 'neutral', transferred_out: 'neutral', deactivated: 'bad',
+  head: 'info', allowed: 'good', not_allowed: 'neutral', answered: 'good', no_data: 'neutral', refused: 'bad', unavailable: 'warn', verified: 'good', unverified: 'warn', archived: 'neutral', deceased: 'neutral', transferred_out: 'neutral', deactivated: 'bad',
   rejected: 'bad', revoked: 'bad', cancelled: 'bad', failed: 'bad', closed: 'neutral', unclaimed: 'bad', declined: 'bad',
 };
 
@@ -136,7 +157,7 @@ export function BarChart({ data, seriesNames, unit = '' }: { data: BarDatum[]; s
   return (
     <div>
       {seriesNames && <div className="chart-legend"><span>{seriesNames[0]}</span><span className="alt">{seriesNames[1]}</span></div>}
-      <div className="bar-chart" role="img" aria-label={data.map((d, i) => `${d.label}: ${totals[i]}`).join(', ')}>
+      <div className={`bar-chart${seriesNames ? '' : ' single'}`} role="img" aria-label={data.map((d, i) => `${d.label}: ${totals[i]}`).join(', ')}>
         {data.map((d, i) => {
           const tip = seriesNames ? `${d.label} — ${seriesNames[0]} ${d.value}, ${seriesNames[1]} ${d.second ?? 0}, total ${totals[i]}${unit}` : `${d.label}: ${d.value}${unit}`;
           return (
@@ -187,6 +208,42 @@ export function EmptyRow({ colSpan, message, action }: { colSpan: number; messag
   );
 }
 
+/** The one tab strip used on every page (underlined, green when active). */
+export function Tabs<T extends string>({ tabs, active, onChange, className = '' }: { tabs: { id: T; label: string }[]; active: T; onChange: (id: T) => void; className?: string }) {
+  return (
+    <div className={`tabs ${className}`} role="tablist">
+      {tabs.map((t) => (
+        <button key={t.id} type="button" role="tab" aria-selected={active === t.id} className={active === t.id ? 'active' : ''} onClick={() => onChange(t.id)}>
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Side panel for create forms, so the list behind it stays in view. Esc or the backdrop closes it. */
+export function Drawer({ open, title, description, onClose, children }: { open: boolean; title: string; description?: ReactNode; onClose: () => void; children: ReactNode }) {
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+  if (!open) return null;
+  return (
+    <div className="drawer-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <aside className="drawer" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="drawer-head">
+          <h3>{title}</h3>
+          <button type="button" className="button-sm" onClick={onClose} aria-label="Close">✕</button>
+        </div>
+        {description && <p className="note" style={{ marginTop: 0 }}>{description}</p>}
+        {children}
+      </aside>
+    </div>
+  );
+}
+
 export function Section({ title, children, actions }: { title: string; children: ReactNode; actions?: ReactNode }) {
   return (
     <section className="detail-section">
@@ -233,8 +290,22 @@ const SPECIAL_LABELS: Record<string, string> = {
   self_employed: 'Self-employed', not_in_labor_force: 'Not in labor force', transferred_out: 'Transferred out', transfer_in: 'Transfer in',
   transfer_out: 'Transfer out', not_registered: 'Not registered', registered: 'Registered voter', semi_concrete: 'Semi-concrete',
   light_materials: 'Light materials', informal_settler: 'Informal settler', pending_approval: 'Pending approval', ready_for_pickup: 'Ready for pickup',
-  per_purok: 'Fair share per purok', no_data: 'No data', '4ps': '4Ps',
+  per_purok: 'Fair share per purok', no_data: 'No data', '4ps': '4Ps', 'n/a': '—',
+  ai_resident_analysis_run: 'AI resident analysis run', ai_suggestions: 'AI suggestions', password_reset_by_admin_cli: 'Password reset by administrator',
 };
+
+/** Module codes stored in the audit log (from the SDD), shown to staff by name. */
+export const MODULE_NAMES: Record<string, string> = {
+  Auth: 'Sign-in', A1: 'Residents', A2: 'Households', A3: 'Families', A4: 'Puroks', A5: 'Sectoral classifications',
+  A6: 'Skills & achievements', B1: 'Certificates', B2: 'Relief distribution', B3: 'Population events', B4: 'Relief planning',
+  C1: 'Dashboard', C2: 'Reports', C3: 'Forecasts', D1: 'User management', D2: 'Audit log', D3: 'Backup & restore',
+  E1: 'Record copies', E2: 'Record corrections', F1: 'AI resident analysis', F2: 'Opportunities', G1: 'Consent',
+  G2: 'Data privacy requests', H1: 'AI assistant',
+};
+
+export function moduleName(code: string | null | undefined): string {
+  return code ? MODULE_NAMES[code] ?? code : '—';
+}
 
 /** Turns stored codes into words: "self_employed" → "Self-employed", "male" → "Male". */
 export function humanize(value: string | null | undefined): string {

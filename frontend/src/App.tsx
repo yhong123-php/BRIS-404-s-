@@ -1,3 +1,4 @@
+import { MotionConfig } from 'framer-motion';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import Layout from './components/Layout';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -32,6 +33,8 @@ import RegistryPage, { RegistryRedirect } from './pages/RegistryPage';
 
 export default function App() {
   return (
+    // reducedMotion="user": entrance/slide animations are skipped for people who turn motion off in their OS.
+    <MotionConfig reducedMotion="user">
     <BrowserRouter>
       <ThemeProvider>
         <ToastProvider>
@@ -82,5 +85,6 @@ export default function App() {
         </ToastProvider>
       </ThemeProvider>
     </BrowserRouter>
+    </MotionConfig>
   );
 }

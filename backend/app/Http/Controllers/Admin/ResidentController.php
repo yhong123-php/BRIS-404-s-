@@ -43,7 +43,26 @@ class ResidentController extends Controller
             $query->where('status', $status);
         }
 
-        $residents = $query->orderBy('last_name')->orderBy('first_name')->paginate(
+        if (in_array($sex = $request->string('sex')->toString(), ['male', 'female'], true)) {
+            $query->where('sex', $sex);
+        }
+
+        // Whitelisted sort columns; anything else falls back to name order.
+        $dir = $request->string('dir')->toString() === 'desc' ? 'desc' : 'asc';
+        match ($request->string('sort')->toString()) {
+            'resident_number' => $query->orderBy('resident_number', $dir),
+            // Older birth date = higher age, so age order is the reverse of birth_date order.
+            'age' => $query->orderBy('birth_date', $dir === 'asc' ? 'desc' : 'asc'),
+            'purok' => $query->orderBy(
+                \App\Models\Purok::select('name')->whereColumn('puroks.id', 'residents.purok_id'),
+                $dir
+            ),
+            'status' => $query->orderBy('status', $dir),
+            default => $query->orderBy('last_name', $dir)->orderBy('first_name', $dir),
+        };
+        $query->orderBy('residents.id');
+
+        $residents = $query->paginate(
             $request->integer('per_page', 25)
         );
 

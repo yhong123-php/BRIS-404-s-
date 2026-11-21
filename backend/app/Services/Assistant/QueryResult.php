@@ -30,6 +30,18 @@ class QueryResult
 
     public int $rowCount = 0;
 
+    /**
+     * Recommendations the data supports, written by rules (community analysis
+     * only). The model may only choose and order these by id; it cannot add one
+     * or change its wording or figures.
+     *
+     * @var array<string, array{text: string, based_on: list<string>}>
+     */
+    public array $options = [];
+
+    /** Set when the user named a purok that this query cannot filter by; shown before the answer. */
+    public ?string $scopeWarning = null;
+
     public function __construct(
         public readonly string $function,
         public readonly string $category,
@@ -80,6 +92,20 @@ class QueryResult
     public function evidence(string $label, int|float|string $value): self
     {
         $this->evidence['E'.(count($this->evidence) + 1)] = "{$label}: {$value}";
+
+        return $this;
+    }
+
+    /** Applies $callback when $condition holds (keeps the builder chain readable). */
+    public function when(bool $condition, callable $callback): self
+    {
+        return $condition ? $callback($this) : $this;
+    }
+
+    /** @param list<string> $basedOn "Label: value" figures from the database */
+    public function option(string $text, array $basedOn): self
+    {
+        $this->options['R'.(count($this->options) + 1)] = ['text' => $text, 'based_on' => array_values($basedOn)];
 
         return $this;
     }

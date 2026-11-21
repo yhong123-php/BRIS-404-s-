@@ -82,7 +82,7 @@ export default function AssistantPage() {
     <div className="flex h-[calc(100vh-8rem)] min-h-[32rem] flex-col">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-charcoal dark:text-gray-50">AI-Powered Barangay Assistant</h1>
+          <h2 className="page-title">AI-Powered Barangay Assistant</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Ask questions about BRIS records in plain language. Answers come only from the barangay's records.
           </p>
@@ -205,7 +205,7 @@ function AssistantBubble({ message }: { message: AssistantMessage }) {
 
             {recommendations.length > 0 && (
               <section className="rounded-xl border border-amber-300/60 bg-amber-50 p-3 dark:border-amber-400/30 dark:bg-amber-400/10">
-                <SectionLabel tone="ai">AI-generated recommendation — for review by the Barangay Captain</SectionLabel>
+                <SectionLabel tone="ai">Recommendations chosen by the AI — for review by the Barangay Captain</SectionLabel>
                 <ol className="mt-2 list-decimal space-y-2 pl-5">
                   {recommendations.map((rec, i) => (
                     <li key={i}>
@@ -215,7 +215,7 @@ function AssistantBubble({ message }: { message: AssistantMessage }) {
                   ))}
                 </ol>
                 <p className="mt-2 text-xs text-gray-600 dark:text-gray-300">
-                  Decision support only. The assistant does not approve or reject beneficiaries or applicants.
+                  Each option comes from a fixed rule applied to the BRIS figures shown; the AI picks the ones that fit your question. Decision support only. The assistant does not approve or reject beneficiaries or applicants.
                 </p>
               </section>
             )}
@@ -275,7 +275,7 @@ function ResultTable({ table }: { table: AssistantTable }) {
         {table.truncated ? ` (showing the first ${table.rows.length})` : ''}
       </summary>
       <div className="max-h-80 overflow-auto">
-        <table className="w-full text-left text-xs">
+        <table className="w-full border-collapse text-left text-xs">
           <thead className="sticky top-0 bg-gray-50 dark:bg-charcoal">
             <tr>
               {table.columns.map((c) => (

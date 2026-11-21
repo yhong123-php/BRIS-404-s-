@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { PageSkeleton } from '../components/ui';
+import { BarChart, PageSkeleton, Tabs } from '../components/ui';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import client from '../api/client';
@@ -33,37 +33,12 @@ function SkillsTab() {
         </div>
       </div>
 
-      <div className={tableWrapClass}>
-        <table className="w-full text-left text-sm">
-          <thead className="bg-charcoal text-gray-300">
-            <tr className="text-xs uppercase tracking-wide">
-              <th className="px-5 py-3 font-medium">Skill</th>
-              <th className="px-5 py-3 font-medium text-right">Residents</th>
-            </tr>
-          </thead>
-          <tbody>
-            {report.by_type.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="px-5 py-8 text-center text-gray-500 dark:text-gray-400">
-                  No skills recorded yet.
-                </td>
-              </tr>
-            ) : (
-              report.by_type.map((row, i) => (
-                <tr
-                  key={row.skill_type_id}
-                  className={`border-b border-gray-100 text-charcoal last:border-0 dark:border-white/10 dark:text-gray-100 ${
-                    i % 2 === 1 ? 'bg-bg-light dark:bg-white/5' : 'bg-white dark:bg-transparent'
-                  }`}
-                >
-                  <td className="px-5 py-3">{row.name}</td>
-                  <td className="px-5 py-3 text-right font-medium">{row.count}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
+      <section className="detail-section mt-5">
+        <h3>Residents per skill</h3>
+        {report.by_type.length === 0 ? <p className="note">No skills recorded yet.</p> : (
+          <BarChart data={[...report.by_type].sort((x, y) => y.count - x.count).map((r) => ({ label: r.name, value: r.count }))} unit=" residents" />
+        )}
+      </section>
     </div>
   );
 }
@@ -96,8 +71,17 @@ function EmploymentTab() {
         have no employment status recorded yet — they are not assumed to be either.
       </p>
 
+      {report.unemployed_residents.length > 0 && (
+        <section className="detail-section mt-5">
+          <h3>Unemployed residents by purok</h3>
+          <BarChart data={Object.entries(report.unemployed_residents.reduce<Record<string, number>>((acc, r) => { const k = r.purok ?? 'No purok'; acc[k] = (acc[k] ?? 0) + 1; return acc; }, {}))
+            .sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true }))
+            .map(([label, value]) => ({ label, value }))} unit=" unemployed" />
+        </section>
+      )}
+
       <div className={tableWrapClass}>
-        <table className="w-full text-left text-sm">
+        <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-charcoal text-gray-300">
             <tr className="text-xs uppercase tracking-wide">
               <th className="px-5 py-3 font-medium">Resident</th>
@@ -152,7 +136,7 @@ function BeneficiariesTab() {
     <div>
       <p className="text-xs text-gray-500 dark:text-gray-400">
         "Beneficiaries" reflects sectoral classifications that denote an assistance program (currently 4Ps Member —
-        the only one this system tracks). Relief distribution isn't recorded in BRIS yet, so it isn't reflected here.
+        the only one this system tracks). Relief distributions have their own per-purok summary on the Relief Distribution page.
       </p>
 
       <div className={`${cardClass} mt-4`}>
@@ -180,7 +164,7 @@ function BeneficiariesTab() {
       </div>
 
       <div className={tableWrapClass}>
-        <table className="w-full text-left text-sm">
+        <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-charcoal text-gray-300">
             <tr className="text-xs uppercase tracking-wide">
               <th className="px-5 py-3 font-medium">Resident</th>
@@ -230,25 +214,17 @@ function AchievementsTab() {
           <span className="text-sm font-medium text-gray-500 dark:text-gray-400">Total achievements recorded</span>
           <div className="mt-2 text-3xl font-semibold text-charcoal dark:text-gray-50">{report.total}</div>
         </div>
-        <div className={cardClass}>
-          <h3 className="text-sm font-semibold text-charcoal dark:text-gray-50">By category</h3>
-          <ul className="mt-2 space-y-1">
-            {report.by_category.length === 0 ? (
-              <li className="text-sm text-gray-500 dark:text-gray-400">None yet.</li>
-            ) : (
-              report.by_category.map((row) => (
-                <li key={row.category} className="flex items-center justify-between text-sm">
-                  <span className="text-charcoal dark:text-gray-100">{row.category}</span>
-                  <span className="font-medium text-charcoal dark:text-gray-50">{row.count}</span>
-                </li>
-              ))
-            )}
-          </ul>
-        </div>
       </div>
 
+      {report.by_category.length > 0 && (
+        <section className="detail-section mt-5">
+          <h3>Achievements by category</h3>
+          <BarChart data={[...report.by_category].sort((x, y) => y.count - x.count).map((r) => ({ label: r.category || 'Uncategorized', value: r.count }))} />
+        </section>
+      )}
+
       <div className={tableWrapClass}>
-        <table className="w-full text-left text-sm">
+        <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-charcoal text-gray-300">
             <tr className="text-xs uppercase tracking-wide">
               <th className="px-5 py-3 font-medium">Resident</th>
@@ -312,28 +288,13 @@ export default function ReportsPage() {
   return (
     <div>
       <div className="no-print">
-        <h1 className="text-2xl font-semibold tracking-tight text-charcoal dark:text-gray-50">Reports</h1>
+        <h2 className="page-title">Reports</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Report generation (SDD §4.12): every report with print/PDF and spreadsheet export, plus quick breakdowns of skills, employment, sectors, and achievements.
+          Print or export any report, and see quick breakdowns of skills, employment, sectors and achievements.
         </p>
       </div>
 
-      <div className="no-print mt-5 flex gap-1 border-b border-gray-200 dark:border-white/10">
-        {availableTabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            className={`relative px-4 py-2.5 text-sm font-medium transition-colors ${
-              tab === t.id ? 'text-primary-dark dark:text-primary' : 'text-gray-500 hover:text-charcoal dark:text-gray-400 dark:hover:text-gray-200'
-            }`}
-          >
-            {t.label}
-            {tab === t.id && (
-              <motion.div layoutId="reports-tab-underline" className="absolute inset-x-0 -bottom-px h-0.5 bg-primary" />
-            )}
-          </button>
-        ))}
-      </div>
+      <Tabs className="no-print mt-5" tabs={availableTabs.map((t) => ({ id: t.id as Tab, label: t.label }))} active={tab} onChange={setTab} />
 
       <AnimatePresence mode="wait">
         <motion.div
